@@ -3,10 +3,9 @@
 import React, { useEffect, useState } from "react";
 import { useMediaQuery } from "react-responsive";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
-import { fetchPage } from "@/services/gitlabServices";
+import { fetchPage, Page } from "@/services/gitlabServices";
 
 type Blog = {
   title: string;
@@ -16,27 +15,32 @@ type Blog = {
   path: string;
   date: string;
 };
-
-type BlogPageResponse = {
-  blogs: Blog[];
-};
-
 interface BlogViewProps {
   selectedTag: string | null;
   page: number;
   router: AppRouterInstance;
 }
 
-const BlogCard = ({ blog, isMobile, handleCardClick }: {
+const BlogCard = ({
+  blog,
+  isMobile,
+  handleCardClick,
+}: {
   blog: Blog;
   isMobile: boolean;
   handleCardClick: (title: string) => void;
 }) => (
   <Card
-    className={`flex ${isMobile ? 'flex-col h-auto' : 'flex-row items-center h-[244px]'} px-3 bg-[#171717] border border-black shadow-md hover:cursor-pointer transition-transform duration-300 hover:scale-[101.5%] hover:shadow-xl`}
+    className={`flex ${
+      isMobile ? "flex-col h-auto" : "flex-row items-center h-[244px]"
+    } px-3 bg-[#171717] border border-black shadow-md hover:cursor-pointer transition-transform duration-300 hover:scale-[101.5%] hover:shadow-xl`}
     onClick={() => handleCardClick(blog.path)}
   >
-    <div className={`${isMobile ? 'w-full h-40 mt-3' : 'w-1/3 min-w-[150px] h-[90%]'} flex-shrink-0`}>
+    <div
+      className={`${
+        isMobile ? "w-full h-40 mt-3" : "w-1/3 min-w-[150px] h-[90%]"
+      } flex-shrink-0`}
+    >
       <img
         src={blog.image}
         alt={blog.title}
@@ -44,14 +48,16 @@ const BlogCard = ({ blog, isMobile, handleCardClick }: {
       />
     </div>
 
-    <CardContent className={`w-full ${!isMobile && 'md:w-2/3 md:pl-4'}`}>
-      <CardHeader className={isMobile ? 'px-0 pt-3' : ''}>
+    <CardContent className={`w-full ${!isMobile && "md:w-2/3 md:pl-4"}`}>
+      <CardHeader className={isMobile ? "px-0 pt-3" : ""}>
         <CardTitle className="text-xl font-bold text-white">
           {blog.title}
         </CardTitle>
         <p className="text-xs text-gray-400">{blog.date}</p>
       </CardHeader>
-      <p className={`text-gray-300 text-sm line-clamp-2 ${!isMobile && 'ml-6'}`}>
+      <p
+        className={`text-gray-300 text-sm line-clamp-2 ${!isMobile && "ml-6"}`}
+      >
         {blog.description}
       </p>
 
@@ -73,7 +79,7 @@ const BlogCard = ({ blog, isMobile, handleCardClick }: {
 );
 
 export default function BlogView({ selectedTag, page, router }: BlogViewProps) {
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<Page | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const isMobile = useMediaQuery({ maxWidth: 480 });
@@ -104,10 +110,20 @@ export default function BlogView({ selectedTag, page, router }: BlogViewProps) {
         {Array.from({ length: 6 }).map((_, index) => (
           <div
             key={index}
-            className={`animate-pulse flex ${isMobile ? 'flex-col' : 'flex-row'} items-center px-3 bg-[#171717] border border-black shadow-md ${isMobile ? 'h-auto py-3' : 'h-[188px]'} rounded-md`}
+            className={`animate-pulse flex ${
+              isMobile ? "flex-col" : "flex-row"
+            } items-center px-3 bg-[#171717] border border-black shadow-md ${
+              isMobile ? "h-auto py-3" : "h-[188px]"
+            } rounded-md`}
           >
-            <div className={`${isMobile ? 'w-full h-40' : 'w-1/3 h-[90%]'} bg-gray-700 rounded-sm`}></div>
-            <div className={`w-full ${isMobile ? 'mt-4' : 'md:pl-4'} space-y-2`}>
+            <div
+              className={`${
+                isMobile ? "w-full h-40" : "w-1/3 h-[90%]"
+              } bg-gray-700 rounded-sm`}
+            ></div>
+            <div
+              className={`w-full ${isMobile ? "mt-4" : "md:pl-4"} space-y-2`}
+            >
               <div className="h-6 bg-gray-700 rounded w-3/4"></div>
               <div className="h-4 bg-gray-700 rounded w-1/2"></div>
               <div className="h-4 bg-gray-700 rounded w-full"></div>

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { FloatingBottomNav } from "@/components/FloatingBottomNav";
+import { Suspense } from "react";
 
 export const metadata: Metadata = {
   title: "Anas Al-Merstani",
@@ -21,8 +22,10 @@ export default function RootLayout({
         <meta property="og:type" content="website" />
       </head>
       <body className="bg-black font-almarai min-h-screen flex flex-col">
+      <Suspense fallback={<div>Loading...</div>}>
         {children}
         <FloatingBottomNav />
+      </Suspense>
       </body>
     </html>
   );

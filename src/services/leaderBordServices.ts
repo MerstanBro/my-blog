@@ -1,6 +1,6 @@
 import routes from '@/lib/routes';
 
-export async function submitScore(Name: any, WPM: any) {
+export async function submitScore(Name: string, WPM: number) {
     try {
         const response = await fetch(routes.SUBMIT_SCORE, {
             method: 'POST',
@@ -17,8 +17,8 @@ export async function submitScore(Name: any, WPM: any) {
         }
 
         return data.message; // Return updated leaderboard
-    } catch (error: any) {
-        console.error('Error submitting score:', error.message);
+    } catch (error) {
+        console.error('Error submitting score:', error);
         return null;
     }
 }

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import matter from "gray-matter";
-import ReactMarkdown, { Components } from "react-markdown";
+import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -13,11 +13,18 @@ import { atomDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import remarkGfm from "remark-gfm";
 
 interface BlogData {
-  metadata: any;
+  metadata: {
+    tags: string[];
+    date: string;
+    title: string;
+    data: string;
+    image: string;
+    description: string;
+  };
   content: string;
 }
 
-const YouTubeEmbed = ({ url }: { url: any }) => {
+const YouTubeEmbed = ({ url }: { url: string }) => {
   const videoId = url.split("v=")[1]?.split("&")[0]; // Extract video ID
   if (!videoId) return <a href={url}>{url}</a>; // Fallback: render as a link
 
@@ -50,7 +57,7 @@ export default function BlogPage() {
     fetchBlog(originalTitle)
       .then((rawContent) => {
         const { data, content } = matter(rawContent);
-        setBlog({ metadata: data, content });
+        setBlog({ metadata: data as BlogData["metadata"], content });
         setLoading(false);
       })
       .catch((err) => {
@@ -124,7 +131,6 @@ export default function BlogPage() {
           ))}
       </div>
 
-      {/* Blog Content */}
       <article
         className="mt-6 prose prose-invert"
         dir={isArabic ? "rtl" : "ltr"}
@@ -132,10 +138,10 @@ export default function BlogPage() {
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           components={{
-            a: ({ node, href, ...props }) => {
+            a: ({ href, ...props }) => {
               return href!.includes("youtube.com/watch") ||
                 href!.includes("youtu.be") ? (
-                <YouTubeEmbed url={href} />
+                <YouTubeEmbed url={`${href}`} />
               ) : (
                 <a
                   href={href}
@@ -144,22 +150,22 @@ export default function BlogPage() {
                 />
               );
             },
-            h1: ({ node, ...props }) => (
+            h1: ({  ...props }) => (
               <h1 className="text-6xl font-bold" {...props} />
             ),
-            h2: ({ node, ...props }) => (
+            h2: ({ ...props }) => (
               <h1 className="text-2xl font-bold py-2" {...props} />
             ),
-            p: ({ node, ...props }) => (
+            p: ({  ...props }) => (
               <p className="text-lg mb-6 text-gray-300" {...props} />
             ),
-            blockquote: ({ node, ...props }) => (
+            blockquote: ({ ...props }) => (
               <blockquote
                 className="border-l-4 border-yellow-500 pl-4 italic"
                 {...props}
               />
             ),
-            ul: ({ node, ...props }) => (
+            ul: ({ ...props }) => (
               <ul
                 className="list-disc ml-5 space-y-2 text-gray-300"
                 {...props}

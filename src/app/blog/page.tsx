@@ -5,8 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import BlogPageTagsDropdown from "@/components/BlogPageTagsDropdown";
 import BlogView from "@/components/BlogView";
-import { ChevronLeft, ChevronRight, FileText } from "lucide-react";
-import { fetchDetails } from "@/services/gitlabServices";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { BlogDetails, fetchDetails } from "@/services/gitlabServices";
 import React from "react";
 
 export default function BlogPage() {
@@ -21,7 +21,7 @@ export default function BlogPage() {
   const [selectedPage, setSelectedPage] = useState<number>(initialPage);
 
   // State for blog details
-  const [blogDetails, setBlogDetails] = useState<any>(null);
+  const [blogDetails, setBlogDetails] = useState<BlogDetails | null>(null);
 
   // Fetch blog details on mount
   useEffect(() => {
@@ -39,7 +39,7 @@ export default function BlogPage() {
   const totalPages =
     blogDetails &&
     (selectedTag
-      ? blogDetails.tags.find((tag: any) => tag.name === selectedTag)
+      ? blogDetails.tags.find((tag) => tag.name === selectedTag)
           ?.number_of_pages || 0
       : blogDetails.number_of_pages);
   const pages = totalPages

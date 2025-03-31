@@ -4,7 +4,6 @@ import {
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 import { X, ChevronDown } from "lucide-react";
 

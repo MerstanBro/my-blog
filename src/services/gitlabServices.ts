@@ -6,7 +6,7 @@ type tagDetails = {
     "name": string,
     "number_of_pages": number
 }
-type BlogDetails = {
+export type BlogDetails = {
     number_of_pages: number,
     "tags": tagDetails[]
 }
@@ -67,10 +67,11 @@ type blog = {
     title: string,
     description: string
     image: string,
-    tags: string[]
-    path: string
+    tags: string[],
+    path: string,
+    date: string,
 }
-type page = {
+export type Page = {
     blogs: blog[]
 }
 
@@ -81,12 +82,12 @@ type page = {
  * @returns The file content.
  */
 
-export async function fetchGitLabFileContent(filePath: string): Promise<any> {
+export async function fetchGitLabFileContent(filePath: string): Promise<string> {
     const endpoint = `projects/${GITLAB_PROJECT_ID}/repository/files/${encodeURIComponent(filePath)}/raw?ref=main`;
     return getGitLabData(endpoint);
 }
 
-export async function fetchBlog(filePath: string): Promise<any> {
+export async function fetchBlog(filePath: string): Promise<string> {
     const file = await fetchGitLabFileContent(filePath)
     return file
 }
@@ -99,7 +100,7 @@ export async function fetchContent(): Promise<BlogContent> {
     const file = await fetchGitLabFileContent("content.json")
     return JSON.parse(file);
 }
-export async function fetchPage(number: number, tag: string | null): Promise<page> {
+export async function fetchPage(number: number, tag: string | null): Promise<Page> {
     const path = tag ? `tags/${tag}/${number}.json` : `pages/${number}.json`
     const file = await fetchGitLabFileContent(path)
     return JSON.parse(file);
