@@ -12,7 +12,7 @@ import { BlogContent, fetchContent } from "@/services/gitlabServices";
 
 export default function Portfolio() {
   const [content, setContent] = useState<BlogContent | null>(null);
-
+  const [error, setError] = useState<Boolean>(false);
   useEffect(() => {
     fetchContent()
       .then((data) => {
@@ -21,9 +21,17 @@ export default function Portfolio() {
       })
       .catch((error) => {
         console.error("Error fetching blog details:", error);
+        setError(true);
       });
   }, []);
 
+  if (error) {
+    return (
+      <div className="min-h-screen bg-black text-red-500 flex items-center justify-center p-6">
+        <p>You need a proxy :)</p>
+      </div>
+    );
+  }
   if (!content) {
     return (
       <div className="min-h-screen flex justify-center items-center bg-black">
