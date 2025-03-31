@@ -12,7 +12,7 @@ import { BlogContent, fetchContent } from "@/services/gitlabServices";
 
 export default function Portfolio() {
   const [content, setContent] = useState<BlogContent | null>(null);
-  const [error, setError] = useState<Boolean>(false);
+  const [error, setError] = useState<boolean>(false);
   useEffect(() => {
     fetchContent()
       .then((data) => {
