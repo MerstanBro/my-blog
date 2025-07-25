@@ -28,7 +28,8 @@ export default function Portfolio() {
   if (error) {
     return (
       <div className="min-h-screen bg-black text-red-500 flex items-center justify-center p-6">
-        <p>You need a proxy :)</p>
+        <p>You need a proxy :)<br/>there is an Easter Egg here somewhere;)
+        </p>
       </div>
     );
   }

@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { FloatingBottomNav } from "@/components/FloatingBottomNav";
 import { Suspense } from "react";
-
+import { Analytics } from '@vercel/analytics/next';
+ 
 export const metadata: Metadata = {
   title: "Anas Al-Merstani",
   description: "Portfolio and blog",
@@ -24,6 +25,7 @@ export default function RootLayout({
       <body className="bg-black font-almarai min-h-screen flex flex-col">
       <Suspense fallback={<div>Loading...</div>}>
         {children}
+        <Analytics />
         <FloatingBottomNav />
       </Suspense>
       </body>
