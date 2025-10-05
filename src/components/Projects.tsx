@@ -19,7 +19,7 @@ type Project = {
 
 export const Projects = ({ projects }: { projects: Project[] }) => {
   return (
-    <section id="projects" className="py-16 px-4 md:px-6 relative ">
+    <section id="projects" className="py-16 px-4 md:px-6 relative bg-black">
       <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-end mb-12">
           <h2 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500">

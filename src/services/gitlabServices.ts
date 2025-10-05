@@ -21,6 +21,13 @@ type HeroSection = {
     info: string;
 };
 
+type CTASection = {
+    title: string;
+    description: string;
+    buttonText: string;
+    subtitle: string;
+};
+
 type Experience = {
     company: string;
     duration: string;
@@ -55,6 +62,7 @@ type LeaderboardEntry = {
 export type BlogContent = {
     NAV_LINKS: NavLink[];
     HERO_SECTION: HeroSection;
+    CTA_SECTION: CTASection;
     experiences: Experience[];
     SOCIAL_LINKS: SocialLink[];
     projects: Project[];
