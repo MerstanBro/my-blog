@@ -111,13 +111,14 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 // ============================================
-// REVALIDATION - ISR with 1 hour cache
+// REVALIDATION - ISR with on-demand revalidation
 // ============================================
-// Note: Next.js requires static values for revalidate (no conditionals)
-// To test loading states in dev: temporarily change to 0 or 10
-export const revalidate = 3600; // Revalidate every hour
-export const dynamic = 'auto'; // Auto detect (allows loading.tsx to show)
+// Setting to false = cache indefinitely (best for blogs)
+// Pages are generated on-demand and cached at edge
+export const revalidate = false; // Cache indefinitely
 export const dynamicParams = true; // Allow dynamic params
+// Note: Remove 'dynamic' export to let Next.js auto-detect
+// This prevents static->dynamic runtime errors
 
 // ============================================
 // MAIN PAGE COMPONENT - Server Component
