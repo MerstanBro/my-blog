@@ -113,10 +113,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 // ============================================
 // REVALIDATION - ISR with 1 hour cache
 // ============================================
-// For development: Set revalidate to 0 to always see loading states
-// For production: Use 3600 for optimal performance
-const IS_DEV = process.env.NODE_ENV === 'development';
-export const revalidate = IS_DEV ? 10 : 3600; // 10s in dev, 1hr in prod
+// Note: Next.js requires static values for revalidate (no conditionals)
+// To test loading states in dev: temporarily change to 0 or 10
+export const revalidate = 3600; // Revalidate every hour
 export const dynamic = 'auto'; // Auto detect (allows loading.tsx to show)
 export const dynamicParams = true; // Allow dynamic params
 

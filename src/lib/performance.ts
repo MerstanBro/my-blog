@@ -15,7 +15,12 @@ export function measurePerformance(componentName: string, fn: () => void) {
 }
 
 // Report Web Vitals
-export function reportWebVitals(metric: any) {
+export function reportWebVitals(metric: {
+  id: string;
+  name: string;
+  value: number;
+  label: 'web-vital' | 'custom';
+}) {
   if (process.env.NODE_ENV === 'production') {
     console.log(metric);
     // You can send to analytics service here

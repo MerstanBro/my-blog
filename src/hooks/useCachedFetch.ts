@@ -5,7 +5,7 @@ interface CacheEntry<T> {
   timestamp: number;
 }
 
-const cache = new Map<string, CacheEntry<any>>();
+const cache = new Map<string, CacheEntry<unknown>>();
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 export function useCachedFetch<T>(
@@ -34,7 +34,7 @@ export function useCachedFetch<T>(
 
         if (cachedEntry && now - cachedEntry.timestamp < cacheDuration && !refetchOnMount) {
           if (isMounted) {
-            setData(cachedEntry.data);
+            setData(cachedEntry.data as T);
             setLoading(false);
           }
           return;
@@ -67,6 +67,7 @@ export function useCachedFetch<T>(
     return () => {
       isMounted = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, cacheDuration, refetchOnMount]);
 
   return { data, loading, error };

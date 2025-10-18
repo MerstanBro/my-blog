@@ -17,7 +17,7 @@ export const CACHE_TAGS = {
  * Create a cached function with automatic tagging
  * Uses Next.js built-in cache with tags for revalidation
  */
-export function createCachedFn<T extends (...args: any[]) => Promise<any>>(
+export function createCachedFn<T extends (...args: unknown[]) => Promise<unknown>>(
   fn: T,
   options: {
     tags: string[];
@@ -39,9 +39,9 @@ export function createCachedFn<T extends (...args: any[]) => Promise<any>>(
  * Memory cache for client-side caching
  */
 class MemoryCache {
-  private cache = new Map<string, { data: any; timestamp: number; ttl: number }>();
+  private cache = new Map<string, { data: unknown; timestamp: number; ttl: number }>();
 
-  set(key: string, data: any, ttl: number = 300000) {
+  set(key: string, data: unknown, ttl: number = 300000) {
     // Default 5 min TTL
     this.cache.set(key, {
       data,
@@ -167,13 +167,13 @@ export async function batchCache<T>(
 /**
  * Cache key generator with proper serialization
  */
-export function generateCacheKey(prefix: string, params: Record<string, any>): string {
+export function generateCacheKey(prefix: string, params: Record<string, unknown>): string {
   const sortedParams = Object.keys(params)
     .sort()
     .reduce((acc, key) => {
       acc[key] = params[key];
       return acc;
-    }, {} as Record<string, any>);
+    }, {} as Record<string, unknown>);
 
   return `${prefix}:${JSON.stringify(sortedParams)}`;
 }
