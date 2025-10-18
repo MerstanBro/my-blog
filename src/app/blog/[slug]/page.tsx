@@ -1,16 +1,13 @@
-"use client";
-
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { Metadata } from "next";
 import matter from "gray-matter";
-import ReactMarkdown from "react-markdown";
-import { Button } from "@/components/ui/button";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { fetchBlog } from "@/services/gitlabServices";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { atomDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-import remarkGfm from "remark-gfm";
+import { Suspense, cache } from "react";
+import BlogContent from "./BlogContent";
+import BlogHeader from "./BlogHeader";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import Image from "next/image";
 
 interface BlogData {
   metadata: {
@@ -24,181 +21,207 @@ interface BlogData {
   content: string;
 }
 
-const YouTubeEmbed = ({ url }: { url: string }) => {
-  const videoId = url.split("v=")[1]?.split("&")[0]; // Extract video ID
-  if (!videoId) return <a href={url}>{url}</a>; // Fallback: render as a link
+interface PageProps {
+  params: Promise<{ slug: string }>;
+}
 
-  return (
-    <iframe
-      width="560"
-      height="315"
-      src={`https://www.youtube.com/embed/${videoId}`}
-      frameBorder="0"
-      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-      allowFullScreen
-      className="my-4 rounded-lg"
-    />
-  );
-};
-
-export default function BlogPage() {
-  const { slug } = useParams() as { slug: string };
-
-  const [blog, setBlog] = useState<BlogData | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!slug) return;
-    setLoading(true);
-    setError(null);
+// ============================================
+// CACHING LAYER - Deduplicated fetch requests
+// ============================================
+const getCachedBlogPost = cache(async (slug: string): Promise<BlogData | null> => {
+  try {
     const originalTitle = slug.replace(/-/g, " ");
-    console.log("Fetching blog for:", originalTitle);
-    fetchBlog(originalTitle)
-      .then((rawContent) => {
-        const { data, content } = matter(rawContent);
-        setBlog({ metadata: data as BlogData["metadata"], content });
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error("Error fetching blog:", err);
-        setError("you need a proxy :)");
-        setLoading(false);
-      });
-  }, [slug]);
+    const rawContent = await fetchBlog(originalTitle);
+    const { data, content } = matter(rawContent);
+    
+    return {
+      metadata: data as BlogData["metadata"],
+      content,
+    };
+  } catch (error) {
+    console.error(`Failed to fetch blog post: ${slug}`, error);
+    return null;
+  }
+});
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center p-6">
-        <span>Loading...</span>
-      </div>
-    );
+// ============================================
+// STATIC PARAMS GENERATION - Pre-render popular posts
+// ============================================
+export async function generateStaticParams() {
+  try {
+    // const details = await fetchDetails();
+    // You can implement logic here to fetch popular/recent posts
+    // For now, returning empty array to generate on-demand
+    return [];
+  } catch (error) {
+    console.error("Failed to generate static params:", error);
+    return [];
+  }
+}
+
+// ============================================
+// DYNAMIC METADATA - SEO Optimization
+// ============================================
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { slug } = await params;
+  const blog = await getCachedBlogPost(slug);
+
+  if (!blog) {
+    return {
+      title: "Post Not Found",
+      description: "The requested blog post could not be found.",
+    };
   }
 
-  if (error) {
-    return (
-      <div className="min-h-screen bg-black text-red-500 flex items-center justify-center p-6">
-        <p>{error}</p>
-      </div>
-    );
-  }
+  const { metadata } = blog;
+  const url = `https://anasmerstani.com/blog/${slug}`;
 
-  if (!blog) return notFound();
+  return {
+    title: metadata.title,
+    description: metadata.description,
+    keywords: metadata.tags,
+    authors: [{ name: "Anas Al-Merstani" }],
+    openGraph: {
+      title: metadata.title,
+      description: metadata.description,
+      url,
+      type: "article",
+      publishedTime: metadata.date,
+      authors: ["Anas Al-Merstani"],
+      tags: metadata.tags,
+      images: [
+        {
+          url: metadata.image,
+          width: 1200,
+          height: 630,
+          alt: metadata.title,
+        },
+      ],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: metadata.title,
+      description: metadata.description,
+      images: [metadata.image],
+    },
+    alternates: {
+      canonical: url,
+    },
+  };
+}
+
+// ============================================
+// REVALIDATION - ISR with 1 hour cache
+// ============================================
+// For development: Set revalidate to 0 to always see loading states
+// For production: Use 3600 for optimal performance
+const IS_DEV = process.env.NODE_ENV === 'development';
+export const revalidate = IS_DEV ? 10 : 3600; // 10s in dev, 1hr in prod
+export const dynamic = 'auto'; // Auto detect (allows loading.tsx to show)
+export const dynamicParams = true; // Allow dynamic params
+
+// ============================================
+// MAIN PAGE COMPONENT - Server Component
+// ============================================
+export default async function BlogPage({ params }: PageProps) {
+  const { slug } = await params;
+  const blog = await getCachedBlogPost(slug);
+
+  if (!blog) {
+    notFound();
+  }
 
   const { metadata, content } = blog;
   const isArabic = /^[\u0600-\u06FF]/.test(content.trim());
 
-  return (
-    <div className="min-h-screen bg-black text-white p-6 w-[99vw] max-w-3xl mx-auto">
-      {/* Back Button */}
-      <Link href="/blog">
-        <Button variant="default" className="mb-4">
-          ← Back to Blog
-        </Button>
-      </Link>
+  // Structured Data for SEO
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    headline: metadata.title,
+    description: metadata.description,
+    image: metadata.image,
+    datePublished: metadata.date,
+    author: {
+      "@type": "Person",
+      name: "Anas Al-Merstani",
+      url: "https://anasmerstani.com",
+    },
+    publisher: {
+      "@type": "Person",
+      name: "Anas Al-Merstani",
+    },
+    mainEntityOfPage: {
+      "@type": "WebPage",
+      "@id": `https://anasmerstani.com/blog/${slug}`,
+    },
+    keywords: metadata.tags.join(", "),
+  };
 
-      {/* Title & Meta Info */}
-      <div className="flex flex-col md:flex-row gap-6">
-        {/* Content Section */}
-        <div className="flex flex-col justify-center md:w-1/2">
-          <h1 className="text-3xl font-bold text-white">{metadata.title}</h1>
-          <p className="text-gray-400">
-            {new Date(metadata.date).toDateString()}
-          </p>
-          <p className="text-lg mt-2 text-gray-300">{metadata.description}</p>
-        </div>
-        {/* Image Section */}
+  return (
+    <>
+      {/* Structured Data */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+
+      <div className="min-h-screen relative w-full overflow-x-hidden">
+        {/* Background Image with Overlay */}
         {metadata.image && (
-          <div className="relative w-full md:w-1/2 h-64 rounded-lg overflow-hidden">
-            <img
+          <div className="fixed inset-0 z-0">
+            <Image
               src={metadata.image}
               alt={metadata.title}
-              className="w-full h-full object-cover rounded-lg"
+              fill
+              className="object-cover"
+              priority
+              quality={85}
+              sizes="100vw"
             />
+            {/* Dark overlay for better text readability */}
+            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
           </div>
         )}
-      </div>
 
-      {/* Tags */}
-      <div className="mt-3 flex flex-wrap gap-2">
-        {metadata.tags &&
-          metadata.tags.map((tag: string, i: number) => (
-            <Link key={i} href={`/blog?tag=${encodeURIComponent(tag)}`}>
-              <span className="px-3 py-1 bg-yellow-700 text-white rounded-full text-xs cursor-pointer hover:bg-yellow-600 transition">
-                {tag}
-              </span>
+        {/* Content Container with Glass Effect */}
+        <div className="relative z-10 min-h-screen p-4 sm:p-6 lg:p-8">
+          <div className="max-w-4xl mx-auto">
+            {/* Back Button */}
+            <Link href="/blog" prefetch={true}>
+              <Button
+                variant="default"
+                className="mb-6 bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 transition-all shadow-lg"
+              >
+                ← Back to Blog
+              </Button>
             </Link>
-          ))}
-      </div>
 
-      <article
-        className="mt-6 prose prose-invert"
-        dir={isArabic ? "rtl" : "ltr"}
-      >
-        <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
-          components={{
-            a: ({ href, ...props }) => {
-              return href!.includes("youtube.com/watch") ||
-                href!.includes("youtu.be") ? (
-                <YouTubeEmbed url={`${href}`} />
-              ) : (
-                <a
-                  href={href}
-                  className="text-blue-400 hover:underline"
-                  {...props}
-                />
-              );
-            },
-            h1: ({  ...props }) => (
-              <h1 className="text-6xl font-bold" {...props} />
-            ),
-            h2: ({ ...props }) => (
-              <h1 className="text-2xl font-bold py-2" {...props} />
-            ),
-            p: ({  ...props }) => (
-              <p className="text-lg mb-6 text-gray-300" {...props} />
-            ),
-            blockquote: ({ ...props }) => (
-              <blockquote
-                className="border-l-4 border-yellow-500 pl-4 italic"
-                {...props}
-              />
-            ),
-            ul: ({ ...props }) => (
-              <ul
-                className="list-disc ml-5 space-y-2 text-gray-300"
-                {...props}
-              />
-            ),
-            // Custom component for code blocks and inline code
-            code({ className, children, ...props }) {
-              const match = /language-(\w+)/.exec(className || "");
-              return true && match ? (
-                <SyntaxHighlighter
-                  style={atomDark}
-                  language={match[1].toLowerCase()}
-                  PreTag="div"
-                  codeTagProps={{ ...props }}
-                >
-                  {String(children).replace(/\n$/, "")}
-                </SyntaxHighlighter>
-              ) : (
-                <SyntaxHighlighter
-                  style={atomDark}
-                  language={""}
-                  PreTag="div"
-                  codeTagProps={{ ...props }}
-                >
-                  {String(children).replace(/\n$/, "")}
-                </SyntaxHighlighter>
-              );
-            },
-          }}
-        >
-          {content}
-        </ReactMarkdown>
-      </article>
-    </div>
+            {/* Main Content Card */}
+            <div
+              className="bg-black/40 backdrop-blur-md rounded-2xl shadow-2xl border border-white/10 overflow-hidden"
+              dir={isArabic ? "rtl" : "ltr"}
+            >
+              {/* Header Section - Render immediately */}
+              <BlogHeader metadata={metadata} />
+
+              {/* Article Content - Stream with Suspense */}
+              <Suspense
+                fallback={
+                  <div className="p-6 sm:p-8 lg:p-10 flex justify-center items-center min-h-[400px]">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-yellow-500"></div>
+                  </div>
+                }
+              >
+                <BlogContent content={content} />
+              </Suspense>
+            </div>
+
+            {/* Bottom Spacing */}
+            <div className="h-12" />
+          </div>
+        </div>
+      </div>
+    </>
   );
 }

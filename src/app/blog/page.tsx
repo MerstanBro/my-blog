@@ -28,7 +28,6 @@ export default function BlogPage() {
     fetchDetails()
       .then((data) => {
         setBlogDetails(data);
-        console.log(data);
       })
       .catch((error) => {
         console.error("Error fetching blog details:", error);

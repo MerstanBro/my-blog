@@ -1,5 +1,6 @@
 import { ArrowUpRight } from "lucide-react";
 import React from "react";
+import Image from "next/image";
 import {
   Carousel,
   CarouselContent,
@@ -52,10 +53,12 @@ export const Projects = ({ projects }: { projects: Project[] }) => {
                 >
                   <article className="group relative h-[98%] bg-gradient-to-br from-[#1a1a1a] to-[#101010] rounded-2xl p-6 shadow-2xl  transition-all duration-300">
                     <div className="relative overflow-hidden rounded-xl mb-6 aspect-video">
-                      <img
+                      <Image
                         src={project.image}
                         alt={project.title}
-                        className="w-full h-full object-cover"
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
                       />
                     </div>
 

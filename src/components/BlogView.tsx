@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useMediaQuery } from "react-responsive";
+import Image from "next/image";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
 import { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
@@ -39,12 +40,14 @@ const BlogCard = ({
     <div
       className={`${
         isMobile ? "w-full h-40 mt-3" : "w-1/3 min-w-[150px] h-[90%]"
-      } flex-shrink-0`}
+      } flex-shrink-0 relative`}
     >
-      <img
+      <Image
         src={blog.image}
         alt={blog.title}
-        className="w-full h-full object-cover rounded-sm"
+        fill
+        className="object-cover rounded-sm"
+        sizes="(max-width: 480px) 100vw, 33vw"
       />
     </div>
 

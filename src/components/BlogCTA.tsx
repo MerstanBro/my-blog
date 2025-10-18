@@ -30,9 +30,9 @@ export const BlogCTA = ({ CTA_SECTION }: { CTA_SECTION: CTASection }) => {
               {CTA_SECTION.buttonText}
             </Button>
           </Link>
-          <div className="text-sm text-gray-400">
+          {/* <div className="text-sm text-gray-400">
             {CTA_SECTION.subtitle}
-          </div>
+          </div> */}
         </div>
       </div>
     </section>
