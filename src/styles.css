@@ -1170,7 +1170,16 @@ html[data-theme="dark"] .theme-icon-dark {
 
 @media (max-width: 800px) {
   :root {
-    --shell: min(100% - 28px, 680px);
+    --shell: min(100% - 36px, 680px);
+  }
+
+  .header-inner {
+    min-height: 66px;
+  }
+
+  .icon-button {
+    width: 40px;
+    height: 40px;
   }
 
   .desktop-nav {
@@ -1201,20 +1210,23 @@ html[data-theme="dark"] .theme-icon-dark {
 
   .hero {
     min-height: auto;
-    padding-block: 6rem;
+    padding-block: 4.5rem 5.5rem;
   }
 
   .hero-grid {
     grid-template-columns: 1fr;
+    gap: 3rem;
   }
 
   .hero-portrait {
-    order: -1;
     justify-self: start;
   }
 
   .hero-portrait img {
-    width: min(100%, 240px);
+    width: 180px;
+    height: 180px;
+    border-radius: 1rem;
+    object-position: center 24%;
   }
 
   .section-heading,
@@ -1261,7 +1273,39 @@ html[data-theme="dark"] .theme-icon-dark {
 
 @media (max-width: 520px) {
   .hero h1 {
-    font-size: clamp(3.1rem, 17vw, 5rem);
+    font-size: clamp(2.8rem, 13vw, 3.55rem);
+    line-height: 0.96;
+  }
+
+  .hero {
+    padding-block: 3.75rem 4.5rem;
+  }
+
+  .hero-grid {
+    gap: 2.5rem;
+  }
+
+  .hero-lead {
+    margin-top: 1.4rem;
+    font-size: 1.15rem;
+  }
+
+  .hero-note {
+    font-size: 0.92rem;
+  }
+
+  .hero-actions {
+    margin-top: 2rem;
+  }
+
+  .hero-portrait img {
+    width: 150px;
+    height: 150px;
+    border-radius: 50%;
+  }
+
+  .section {
+    padding-block: 4.5rem;
   }
 
   .footer-inner,
