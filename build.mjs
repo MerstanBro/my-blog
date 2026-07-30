@@ -592,9 +592,15 @@ function postPage(content, raw, fallbackName) {
           <h1>${escapeHtml(title)}</h1>
           <p>${escapeHtml(metadata.description || "")}</p>
           <div class="article-tags">${tagLinks}</div>
-          <div class="article-actions" data-likes data-slug="${escapeHtml(interactionSlug)}"></div>
         </header>
         ${metadata.image ? `<img class="article-cover" src="${escapeHtml(metadata.image)}" alt="">` : ""}
+      </div>
+      <div class="article-actions" data-likes data-slug="${escapeHtml(interactionSlug)}">
+        <button type="button" class="like-button" data-like-button aria-pressed="false">
+          <span data-like-label>Like</span>
+          <span class="like-count" data-like-count>·</span>
+        </button>
+        <p class="like-status" data-like-status hidden></p>
       </div>
       <div class="article-body">${rendered.html}</div>
       <div data-comments data-slug="${escapeHtml(interactionSlug)}" data-post-path="${escapeHtml(postPath)}"></div>
