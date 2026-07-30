@@ -15,7 +15,7 @@
  * (likes, pending comments, leaderboard, manifest clear, site-cache).
  */
 
-import { allowedContentRef, shouldSkipRebuild } from "../lib/webhook.mjs";
+import { allowedContentRef, shouldSkipRebuild } from "../lib/webhook.js";
 
 export default async function handler(request, response) {
   if (request.method !== "POST") {

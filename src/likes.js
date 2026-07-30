@@ -28,12 +28,11 @@
     }
   }
 
-  // Ensure markup exists even if the page was cached without the button shell.
   if (!mount.querySelector("[data-like-button]")) {
     mount.innerHTML = `
       <button type="button" class="like-button" data-like-button aria-pressed="false">
         <span data-like-label>Like</span>
-        <span class="like-count" data-like-count>·</span>
+        <span class="like-count" data-like-count>0</span>
       </button>
       <p class="like-status" data-like-status hidden></p>
     `;
@@ -44,13 +43,29 @@
   const countEl = mount.querySelector("[data-like-count]");
   const labelEl = mount.querySelector("[data-like-label]");
   const statusEl = mount.querySelector("[data-like-status]");
+  let busy = false;
 
-  function render({ count = 0, liked = false } = {}) {
-    if (countEl) countEl.textContent = String(count);
+  function setStatus(message, kind = "") {
+    if (!statusEl) return;
+    statusEl.textContent = message || "";
+    statusEl.hidden = !message;
+    statusEl.classList.toggle("is-error", kind === "error");
+    statusEl.classList.toggle("is-success", kind === "success");
+  }
+
+  function render({ count, liked = false, pending = false } = {}) {
+    if (countEl && count !== undefined && count !== null && !Number.isNaN(Number(count))) {
+      countEl.textContent = String(count);
+    }
     if (!button) return;
-    button.disabled = liked;
+    button.classList.toggle("is-liked", liked);
+    button.classList.toggle("is-pending", pending);
+    button.disabled = liked || pending || busy;
     button.setAttribute("aria-pressed", String(liked));
-    if (labelEl) labelEl.textContent = liked ? "Liked" : "Like";
+    if (labelEl) {
+      if (pending) labelEl.textContent = "Saving";
+      else labelEl.textContent = liked ? "Liked" : "Like";
+    }
   }
 
   async function refresh() {
@@ -62,17 +77,18 @@
       if (!response.ok) return;
       render(await response.json());
     } catch {
-      // Keep the visible button; count stays as placeholder until the API responds.
+      // Button stays usable; click will surface errors.
     }
   }
 
   button?.addEventListener("click", async () => {
-    if (!slug || !id || button.disabled) return;
-    button.disabled = true;
-    if (statusEl) {
-      statusEl.hidden = true;
-      statusEl.textContent = "";
-    }
+    if (!slug || !id || busy || button.disabled) return;
+    busy = true;
+    const previousCount = Number(countEl?.textContent);
+    const optimistic = Number.isFinite(previousCount) ? previousCount + 1 : 1;
+    setStatus("");
+    render({ count: optimistic, liked: true, pending: true });
+
     try {
       const response = await fetch("/api/likes", {
         method: "POST",
@@ -80,21 +96,39 @@
         body: JSON.stringify({ slug, deviceId: id }),
       });
       const data = await response.json().catch(() => ({}));
+
       if (response.ok || response.status === 409) {
-        render({ count: data.count ?? Number(countEl?.textContent) || 0, liked: true });
+        render({
+          count: Number.isFinite(data.count) ? data.count : optimistic,
+          liked: true,
+          pending: false,
+        });
+        setStatus(response.status === 409 ? "Already liked from this device." : "Liked.", "success");
         return;
       }
-      if (statusEl) {
-        statusEl.textContent = data.error || "Could not like this post.";
-        statusEl.hidden = false;
+
+      render({
+        count: Number.isFinite(previousCount) ? previousCount : 0,
+        liked: false,
+        pending: false,
+      });
+      setStatus(data.error || `Could not like this post (${response.status}).`, "error");
+    } catch (error) {
+      render({
+        count: Number.isFinite(previousCount) ? previousCount : 0,
+        liked: false,
+        pending: false,
+      });
+      setStatus(
+        "Could not reach the likes API. Use npm run dev (with .env) or the deployed site.",
+        "error",
+      );
+      console.error(error);
+    } finally {
+      busy = false;
+      if (button && button.getAttribute("aria-pressed") !== "true") {
+        button.disabled = false;
       }
-      button.disabled = false;
-    } catch {
-      if (statusEl) {
-        statusEl.textContent = "Could not like this post.";
-        statusEl.hidden = false;
-      }
-      button.disabled = false;
     }
   });
 

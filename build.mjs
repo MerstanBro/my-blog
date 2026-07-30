@@ -3,16 +3,16 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import matter from "gray-matter";
-import { createGitlabClient } from "./lib/gitlab.mjs";
-import { markdownHtml } from "./lib/markdown.mjs";
+import { createGitlabClient } from "./lib/gitlab.js";
+import { markdownHtml } from "./lib/markdown.js";
 import {
   clearProcessedManifest,
   needsFullRebuild,
   parseManifest,
   serializeManifest,
-} from "./lib/manifest.mjs";
-import { toUiEntries, parseLeaderboard } from "./lib/leaderboard.mjs";
-import { cacheRef, readCacheFile } from "./lib/site-cache.mjs";
+} from "./lib/manifest.js";
+import { toUiEntries, parseLeaderboard } from "./lib/leaderboard.js";
+import { cacheRef, readCacheFile } from "./lib/site-cache.js";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const dist = path.join(root, "dist");
@@ -598,7 +598,7 @@ function postPage(content, raw, fallbackName) {
       <div class="article-actions" data-likes data-slug="${escapeHtml(interactionSlug)}">
         <button type="button" class="like-button" data-like-button aria-pressed="false">
           <span data-like-label>Like</span>
-          <span class="like-count" data-like-count>·</span>
+          <span class="like-count" data-like-count>0</span>
         </button>
         <p class="like-status" data-like-status hidden></p>
       </div>

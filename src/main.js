@@ -45,4 +45,78 @@
       button.textContent = "Select code";
     }
   });
+
+  // Page enter animation
+  root.classList.add("is-ready");
+  document.getElementById("main")?.classList.add("page-enter");
+
+  function ensureSkeleton() {
+    let shell = document.querySelector("[data-nav-skeleton]");
+    if (shell) return shell;
+    shell = document.createElement("div");
+    shell.className = "nav-skeleton";
+    shell.dataset.navSkeleton = "";
+    shell.hidden = true;
+    shell.innerHTML = `
+      <div class="nav-skeleton-panel shell" aria-hidden="true">
+        <div class="skel skel-kicker"></div>
+        <div class="skel skel-title"></div>
+        <div class="skel skel-line"></div>
+        <div class="skel skel-line short"></div>
+        <div class="skel skel-cover"></div>
+        <div class="skel skel-line"></div>
+        <div class="skel skel-line"></div>
+        <div class="skel skel-line short"></div>
+      </div>
+    `;
+    document.body.appendChild(shell);
+    return shell;
+  }
+
+  function showSkeleton() {
+    const shell = ensureSkeleton();
+    shell.hidden = false;
+    root.classList.add("is-navigating");
+    requestAnimationFrame(() => shell.classList.add("is-visible"));
+  }
+
+  function isInternalNav(anchor) {
+    if (!anchor || anchor.target === "_blank" || anchor.hasAttribute("download")) return false;
+    if (anchor.origin !== location.origin) return false;
+    const href = anchor.getAttribute("href") || "";
+    if (!href || href.startsWith("#") || href.startsWith("mailto:") || href.startsWith("tel:")) return false;
+    if (anchor.pathname === location.pathname && anchor.search === location.search) return false;
+    return true;
+  }
+
+  function isPostLike(pathname) {
+    return /^\/blog\/(?!tag\/|page\/)[^/]+\/?$/.test(pathname);
+  }
+
+  document.addEventListener("click", (event) => {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+      return;
+    }
+    const anchor = event.target.closest("a[href]");
+    if (!isInternalNav(anchor)) return;
+
+    // Skeleton especially for article navigations; still snappy for other internal links.
+    if (isPostLike(anchor.pathname) || isPostLike(location.pathname) || anchor.pathname.startsWith("/blog")) {
+      event.preventDefault();
+      showSkeleton();
+      // Full page loads: skip View Transitions (they double-paint with the skeleton).
+      window.setTimeout(() => {
+        location.href = anchor.href;
+      }, 80);
+    }
+  });
+
+  window.addEventListener("pageshow", () => {
+    root.classList.remove("is-navigating");
+    const shell = document.querySelector("[data-nav-skeleton]");
+    if (shell) {
+      shell.classList.remove("is-visible");
+      shell.hidden = true;
+    }
+  });
 })();

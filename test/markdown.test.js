@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { markdownHtml, transformCodeFence } from "../lib/markdown.mjs";
+import { markdownHtml, transformCodeFence } from "../lib/markdown.js";
 
 describe("markdown fences", () => {
   it("renders mermaid blocks", () => {

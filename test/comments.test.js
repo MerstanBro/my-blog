@@ -4,8 +4,8 @@ import {
   createPendingComment,
   pendingNotePath,
   validateCommentInput,
-} from "../lib/comments.mjs";
-import { createMemoryGitlab } from "../lib/gitlab.mjs";
+} from "../lib/comments.js";
+import { createMemoryGitlab } from "../lib/gitlab.js";
 
 describe("comments", () => {
   it("validates payloads and rejects honeypots", () => {

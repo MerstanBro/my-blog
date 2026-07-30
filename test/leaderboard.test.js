@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { createMemoryGitlab } from "../lib/gitlab.mjs";
-import { appendLeaderboardScore, validateScore } from "../lib/leaderboard.mjs";
+import { createMemoryGitlab } from "../lib/gitlab.js";
+import { appendLeaderboardScore, validateScore } from "../lib/leaderboard.js";
 
 describe("leaderboard", () => {
   it("validates scores", () => {

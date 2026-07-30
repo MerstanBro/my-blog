@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { createMemoryGitlab } from "../lib/gitlab.mjs";
-import { addLike, getLikeStatus } from "../lib/likes.mjs";
+import { createMemoryGitlab } from "../lib/gitlab.js";
+import { addLike, getLikeStatus } from "../lib/likes.js";
 
 const deviceA = "11111111-1111-4111-8111-111111111111";
 const deviceB = "22222222-2222-4222-8222-222222222222";

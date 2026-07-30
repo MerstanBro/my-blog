@@ -5,7 +5,7 @@ import {
   mergeManifest,
   needsFullRebuild,
   parseManifest,
-} from "../lib/manifest.mjs";
+} from "../lib/manifest.js";
 
 describe("manifest", () => {
   it("parses and merges dirty entries", () => {

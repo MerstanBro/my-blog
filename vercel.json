@@ -3,6 +3,12 @@
   "outputDirectory": "dist",
   "cleanUrls": true,
   "trailingSlash": true,
+  "functions": {
+    "api/likes.js": { "maxDuration": 15, "includeFiles": "lib/**" },
+    "api/comments.js": { "maxDuration": 15, "includeFiles": "lib/**" },
+    "api/leaderboard.js": { "maxDuration": 15, "includeFiles": "lib/**" },
+    "api/content-webhook.js": { "maxDuration": 10, "includeFiles": "lib/**" }
+  },
   "headers": [
     {
       "source": "/assets/fonts/(.*)",

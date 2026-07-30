@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { allowedContentRef, shouldSkipRebuild } from "../lib/webhook.mjs";
+import { allowedContentRef, shouldSkipRebuild } from "../lib/webhook.js";
 
 describe("webhook", () => {
   it("skips when every commit asks to skip rebuild", () => {

@@ -4,48 +4,59 @@
 
   const slug = mount.dataset.slug || "";
   const postPath = mount.dataset.postPath || `${slug}.md`;
+  const storageKey = `comments-open:${slug || location.pathname}`;
 
   mount.innerHTML = `
-    <section class="comments-panel" aria-labelledby="comments-heading">
-      <header class="comments-head">
-        <div>
-          <p class="section-kicker">Conversation</p>
-          <h2 id="comments-heading">Comments <span class="comments-count" data-comments-count></span></h2>
-        </div>
-        <p class="comments-lead">Thoughtful notes welcome. New comments are reviewed before they appear.</p>
-      </header>
+    <section class="comments-panel" data-comments-panel>
+      <button type="button" class="comments-toggle" data-comments-toggle aria-expanded="false" aria-controls="comments-drawer">
+        <span class="comments-toggle-copy">
+          <span class="section-kicker">Conversation</span>
+          <span class="comments-toggle-title">Comments <span class="comments-count" data-comments-count></span></span>
+          <span class="comments-toggle-hint" data-comments-hint>Show discussion</span>
+        </span>
+        <span class="comments-toggle-icon" aria-hidden="true"></span>
+      </button>
 
-      <div class="comments-list" data-comments-list>
-        <p class="comments-empty">Loading comments…</p>
+      <div class="comments-drawer" id="comments-drawer" data-comments-drawer>
+        <div class="comments-drawer-inner">
+          <p class="comments-lead">Thoughtful notes welcome. New comments are reviewed before they appear.</p>
+
+          <div class="comments-list" data-comments-list>
+            <p class="comments-empty">Loading comments…</p>
+          </div>
+
+          <form class="comment-form" data-comment-form novalidate>
+            <div class="comment-form-head">
+              <h3>Write a reply</h3>
+              <p class="comment-note">Held for review — usually published after you approve it in Obsidian.</p>
+            </div>
+            <div class="comment-fields">
+              <label class="comment-field comment-field-name">
+                <span>Name</span>
+                <input name="author" type="text" maxlength="60" required autocomplete="name" placeholder="Your name">
+              </label>
+              <label class="comment-field comment-field-body">
+                <span>Comment</span>
+                <textarea name="body" rows="5" maxlength="4000" required placeholder="What stayed with you?"></textarea>
+              </label>
+            </div>
+            <label class="comment-honeypot" aria-hidden="true">
+              <span>Website</span>
+              <input name="website" type="text" tabindex="-1" autocomplete="off">
+            </label>
+            <div class="comment-form-actions">
+              <button class="button primary" type="submit" data-comment-submit>Submit for review</button>
+              <p class="comment-status" data-comment-status hidden role="status"></p>
+            </div>
+          </form>
+        </div>
       </div>
-
-      <form class="comment-form" data-comment-form novalidate>
-        <div class="comment-form-head">
-          <h3>Write a reply</h3>
-          <p class="comment-note">Held for review — usually published after you approve it in Obsidian.</p>
-        </div>
-        <div class="comment-fields">
-          <label class="comment-field comment-field-name">
-            <span>Name</span>
-            <input name="author" type="text" maxlength="60" required autocomplete="name" placeholder="Your name">
-          </label>
-          <label class="comment-field comment-field-body">
-            <span>Comment</span>
-            <textarea name="body" rows="5" maxlength="4000" required placeholder="What stayed with you?"></textarea>
-          </label>
-        </div>
-        <label class="comment-honeypot" aria-hidden="true">
-          <span>Website</span>
-          <input name="website" type="text" tabindex="-1" autocomplete="off">
-        </label>
-        <div class="comment-form-actions">
-          <button class="button primary" type="submit" data-comment-submit>Submit for review</button>
-          <p class="comment-status" data-comment-status hidden role="status"></p>
-        </div>
-      </form>
     </section>
   `;
 
+  const panel = mount.querySelector("[data-comments-panel]");
+  const toggle = mount.querySelector("[data-comments-toggle]");
+  const hint = mount.querySelector("[data-comments-hint]");
   const list = mount.querySelector("[data-comments-list]");
   const countEl = mount.querySelector("[data-comments-count]");
   const form = mount.querySelector("[data-comment-form]");
@@ -81,6 +92,17 @@
   function setCount(n) {
     if (!countEl) return;
     countEl.textContent = n > 0 ? `(${n})` : "";
+  }
+
+  function setOpen(open) {
+    panel?.classList.toggle("is-open", open);
+    toggle?.setAttribute("aria-expanded", String(open));
+    if (hint) hint.textContent = open ? "Hide discussion" : "Show discussion";
+    try {
+      sessionStorage.setItem(storageKey, open ? "1" : "0");
+    } catch {
+      // ignore
+    }
   }
 
   function emptyState(message) {
@@ -130,6 +152,10 @@
     }
   }
 
+  toggle?.addEventListener("click", () => {
+    setOpen(!panel.classList.contains("is-open"));
+  });
+
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
     status.hidden = true;
@@ -171,5 +197,12 @@
     }
   });
 
+  let shouldOpen = false;
+  try {
+    shouldOpen = sessionStorage.getItem(storageKey) === "1";
+  } catch {
+    shouldOpen = false;
+  }
+  setOpen(shouldOpen);
   loadApproved();
 })();
