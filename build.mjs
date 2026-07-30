@@ -3,8 +3,16 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import matter from "gray-matter";
-import hljs from "highlight.js";
-import { marked } from "marked";
+import { createGitlabClient } from "./lib/gitlab.mjs";
+import { markdownHtml } from "./lib/markdown.mjs";
+import {
+  clearProcessedManifest,
+  needsFullRebuild,
+  parseManifest,
+  serializeManifest,
+} from "./lib/manifest.mjs";
+import { toUiEntries, parseLeaderboard } from "./lib/leaderboard.mjs";
+import { cacheRef, readCacheFile } from "./lib/site-cache.mjs";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const dist = path.join(root, "dist");
@@ -106,10 +114,35 @@ const fast = "less runtime work";
 console.log(fast);
 \`\`\`
 
+\`\`\`mermaid
+flowchart LR
+  Content[Content] --> Build[build.mjs] --> Dist[dist]
+\`\`\`
+
+\`\`\`chart
+{"type":"bar","data":{"labels":["HTML","CSS","JS"],"datasets":[{"label":"Files","data":[12,1,3]}]}}
+\`\`\`
+
 The result is fast by default, easy to cache, and friendly to search engines.
 `,
   },
+  approvedComments: {
+    "Building-a-fast-static-blog": [
+      {
+        id: "demo-1",
+        postSlug: "Building-a-fast-static-blog",
+        author: "Reader",
+        body: "Clear and useful. Looking forward to v2.",
+        createdAt: "2026-07-31T00:00:00.000Z",
+      },
+    ],
+  },
+  manifest: { version: 1, full: true, posts: [], commentPages: [], indexes: false },
 };
+
+function postSlugFromName(name = "") {
+  return slugify(String(name).replace(/\.md$/i, ""));
+}
 
 function escapeHtml(value = "") {
   return String(value)
@@ -176,14 +209,23 @@ async function copyFonts() {
   }
 }
 
-async function gitlabFile(filePath) {
+async function copyVendorScripts() {
+  const vendor = path.join(dist, "assets", "vendor");
+  await fs.mkdir(vendor, { recursive: true });
+  await fs.copyFile(
+    path.join(root, "node_modules", "chart.js", "dist", "chart.umd.js"),
+    path.join(vendor, "chart.umd.js"),
+  );
+}
+
+async function gitlabFile(filePath, fileRef = ref) {
   if (!projectId || !token) {
     throw new Error("GITLAB_PROJECT_ID and GITLAB_TOKEN are required. Use npm run build:demo for a local preview.");
   }
 
   const url =
     `https://gitlab.com/api/v4/projects/${encodeURIComponent(projectId)}` +
-    `/repository/files/${encodeURIComponent(filePath)}/raw?ref=${encodeURIComponent(ref)}`;
+    `/repository/files/${encodeURIComponent(filePath)}/raw?ref=${encodeURIComponent(fileRef)}`;
   const response = await fetch(url, { headers: { "PRIVATE-TOKEN": token } });
 
   if (!response.ok) {
@@ -193,6 +235,29 @@ async function gitlabFile(filePath) {
   return response.text();
 }
 
+async function gitlabFileOptional(filePath, fileRef = ref) {
+  try {
+    return await gitlabFile(filePath, fileRef);
+  } catch {
+    return null;
+  }
+}
+
+async function loadApprovedComments(slugs) {
+  const approved = {};
+  for (const slug of slugs) {
+    const raw = await gitlabFileOptional(`comments/approved/${slug}.json`);
+    if (!raw) continue;
+    try {
+      const data = JSON.parse(raw);
+      if (Array.isArray(data)) approved[slug] = data;
+    } catch {
+      // ignore malformed
+    }
+  }
+  return approved;
+}
+
 async function loadContent() {
   if (isDemo) {
     return {
@@ -200,21 +265,33 @@ async function loadContent() {
       details: demo.details,
       pages: new Map([["all:1", { blogs: demo.blogs }]]),
       posts: demo.posts,
+      approvedComments: demo.approvedComments,
+      manifest: demo.manifest,
+      incremental: false,
+      cachedHtml: new Map(),
     };
   }
 
-  const [contentRaw, detailsRaw] = await Promise.all([
+  const manifestRaw = await gitlabFileOptional("rebuild-manifest.json");
+  const manifest = parseManifest(manifestRaw);
+  const cacheProbe = await readCacheFile(gitlabFileOptional, "blog/index.html");
+  const full = needsFullRebuild(manifest, { hasCache: Boolean(cacheProbe) });
+
+  const [contentRaw, detailsRaw, leaderboardRaw] = await Promise.all([
     gitlabFile("content.json"),
     gitlabFile("details.json"),
+    gitlabFileOptional("leaderboard.json"),
   ]);
   const content = JSON.parse(contentRaw);
   const details = JSON.parse(detailsRaw);
-  const pages = new Map();
+  if (leaderboardRaw) {
+    content.leaderboardEntries = toUiEntries(parseLeaderboard(leaderboardRaw));
+  }
 
+  const pages = new Map();
   for (let page = 1; page <= details.number_of_pages; page += 1) {
     pages.set(`all:${page}`, JSON.parse(await gitlabFile(`pages/${page}.json`)));
   }
-
   for (const tag of details.tags || []) {
     for (let page = 1; page <= tag.number_of_pages; page += 1) {
       pages.set(
@@ -231,9 +308,38 @@ async function loadContent() {
     }
   }
 
+  const dirtyPosts = new Set(manifest.posts || []);
   const posts = {};
-  for (const name of postNames) posts[name] = await gitlabFile(name);
-  return { content, details, pages, posts };
+  const cachedHtml = new Map();
+
+  for (const name of postNames) {
+    const dirty = full || dirtyPosts.has(name) || dirtyPosts.has(postSlugFromName(name));
+    if (dirty) {
+      posts[name] = await gitlabFile(name);
+    } else {
+      const fileSlug = slugify(name);
+      const cached = await readCacheFile(gitlabFileOptional, `blog/${fileSlug}/index.html`);
+      if (cached) cachedHtml.set(name, cached);
+      else posts[name] = await gitlabFile(name);
+    }
+  }
+
+  const commentSlugs = new Set([
+    ...(manifest.commentPages || []),
+    ...[...postNames].map((name) => postSlugFromName(name)),
+  ]);
+  const approvedComments = await loadApprovedComments([...commentSlugs]);
+
+  return {
+    content,
+    details,
+    pages,
+    posts,
+    approvedComments,
+    manifest,
+    incremental: !full,
+    cachedHtml,
+  };
 }
 
 function icons(name) {
@@ -461,44 +567,23 @@ function formatDate(value) {
     : new Intl.DateTimeFormat("en", { month: "long", day: "numeric", year: "numeric" }).format(date);
 }
 
-function decodeEntities(value) {
-  return value
-    .replaceAll("&lt;", "<")
-    .replaceAll("&gt;", ">")
-    .replaceAll("&amp;", "&")
-    .replaceAll("&quot;", '"')
-    .replaceAll("&#39;", "'");
-}
-
-function markdownHtml(markdown) {
-  marked.setOptions({ gfm: true, breaks: false });
-  let html = marked.parse(markdown);
-  html = html.replace(
-    /<pre><code(?: class="language-([^"]+)")?>([\s\S]*?)<\/code><\/pre>/g,
-    (_, language = "", code) => {
-      const raw = decodeEntities(code).replace(/\n$/, "");
-      const highlighted = language && hljs.getLanguage(language)
-        ? hljs.highlight(raw, { language }).value
-        : hljs.highlightAuto(raw).value;
-      return `<div class="code-shell"><div class="code-bar"><span>${escapeHtml(language || "code")}</span><button type="button" data-copy-code>Copy</button></div><pre><code class="hljs">${highlighted}</code></pre></div>`;
-    },
-  );
-  html = html.replace(
-    /<p><a href="https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([^"&]+)[^"]*">[^<]*<\/a><\/p>/gi,
-    '<div class="video"><iframe src="https://www.youtube-nocookie.com/embed/$1" title="YouTube video" loading="lazy" allowfullscreen></iframe></div>',
-  );
-  return html;
-}
-
 function postPage(content, raw, fallbackName) {
   const parsed = matter(raw);
   const metadata = parsed.data;
   const title = metadata.title || fallbackName;
   const fileSlug = slugify(fallbackName || title);
   const urlSlug = pathSegment(fallbackName || title);
+  const interactionSlug = postSlugFromName(fallbackName || title);
+  const postPath = String(fallbackName || "").endsWith(".md")
+    ? String(fallbackName)
+    : `${fallbackName}.md`;
   const tags = metadata.tags || [];
   const tagLinks = tags.map((tag) => `<a href="${listingPath(tag, 1)}">${escapeHtml(tag)}</a>`).join("");
   const isArabic = /^[\u0600-\u06ff]/.test(parsed.content.trim());
+  const rendered = markdownHtml(parsed.content);
+  const scripts = ["/assets/likes.js", "/assets/comments.js"];
+  if (rendered.hasMermaid || rendered.hasChart) scripts.push("/assets/diagrams.js");
+
   const body = `<article class="article-shell shell" dir="${isArabic ? "rtl" : "ltr"}">
       <a class="back-link" href="/blog/">← All writing</a>
       <div class="article-lead ${metadata.image ? "has-cover" : ""}">
@@ -507,10 +592,12 @@ function postPage(content, raw, fallbackName) {
           <h1>${escapeHtml(title)}</h1>
           <p>${escapeHtml(metadata.description || "")}</p>
           <div class="article-tags">${tagLinks}</div>
+          <div class="article-actions" data-likes data-slug="${escapeHtml(interactionSlug)}"></div>
         </header>
         ${metadata.image ? `<img class="article-cover" src="${escapeHtml(metadata.image)}" alt="">` : ""}
       </div>
-      <div class="article-body">${markdownHtml(parsed.content)}</div>
+      <div class="article-body">${rendered.html}</div>
+      <div data-comments data-slug="${escapeHtml(interactionSlug)}" data-post-path="${escapeHtml(postPath)}"></div>
     </article>`;
   const filePathname = `/blog/${fileSlug}/`;
   const urlPathname = `/blog/${urlSlug}/`;
@@ -518,6 +605,7 @@ function postPage(content, raw, fallbackName) {
     filePathname,
     pathname: urlPathname,
     date: metadata.date,
+    interactionSlug,
     html: layout({
       title,
       description: metadata.description || "",
@@ -529,6 +617,7 @@ function postPage(content, raw, fallbackName) {
       active: "blog",
       content,
       body,
+      scripts,
       schema: {
         "@context": "https://schema.org",
         "@type": "BlogPosting",
@@ -551,9 +640,51 @@ ${urls.map((item) => `  <url><loc>${siteUrl}${item.pathname}</loc>${item.date ? 
 </urlset>`;
 }
 
+async function clearManifestAfterBuild(manifest) {
+  if (isDemo || !projectId || !token) return;
+  try {
+    const client = createGitlabClient({ projectId, token, ref });
+    const cleared = clearProcessedManifest(manifest, { clearAll: true });
+    await client.writeFile("rebuild-manifest.json", serializeManifest(cleared), {
+      message: "clear rebuild-manifest after build",
+      skipRebuild: true,
+    });
+    console.log("Cleared rebuild-manifest.json");
+  } catch (error) {
+    console.warn("Could not clear rebuild-manifest.json:", error.message);
+  }
+}
+
+async function publishSiteCache(relativePaths) {
+  if (isDemo || !projectId || !token || process.env.SKIP_SITE_CACHE === "1") return;
+  const branch = cacheRef();
+  try {
+    const client = createGitlabClient({ projectId, token, ref: branch });
+    for (const relative of relativePaths) {
+      const absolute = path.join(dist, relative);
+      try {
+        const content = await fs.readFile(absolute, "utf8");
+        await client.writeFile(relative, content, {
+          message: `site-cache ${relative}`,
+          skipRebuild: true,
+        });
+      } catch (error) {
+        if (error.code !== "ENOENT") {
+          console.warn(`site-cache skip ${relative}:`, error.message);
+        }
+      }
+    }
+    console.log(`Updated site-cache branch (${relativePaths.length} paths attempted)`);
+  } catch (error) {
+    console.warn("site-cache update skipped:", error.message);
+  }
+}
+
 async function build() {
   console.log(`Building ${isDemo ? "demo" : "GitLab"} content…`);
   const data = await loadContent();
+  if (data.incremental) console.log("Incremental mode: reusing cached post HTML where possible");
+
   await fs.rm(dist, { recursive: true, force: true });
   await fs.mkdir(dist, { recursive: true });
 
@@ -578,10 +709,37 @@ async function build() {
     }
   }
 
-  for (const [name, raw] of Object.entries(data.posts)) {
-    const post = postPage(data.content, raw, name);
-    await write(path.join(post.filePathname, "index.html"), post.html);
-    urls.push({ pathname: post.pathname, date: post.date });
+  const allPostNames = new Set([
+    ...Object.keys(data.posts),
+    ...[...(data.cachedHtml?.keys?.() || [])],
+  ]);
+
+  // Include listing-only names from pages
+  for (let page = 1; page <= data.details.number_of_pages; page += 1) {
+    for (const blog of data.pages.get(`all:${page}`)?.blogs || []) {
+      allPostNames.add(blog.path || blog.title);
+    }
+  }
+
+  const cachePaths = [];
+  for (const name of allPostNames) {
+    if (data.posts[name]) {
+      const post = postPage(data.content, data.posts[name], name);
+      await write(path.join(post.filePathname, "index.html"), post.html);
+      urls.push({ pathname: post.pathname, date: post.date });
+      cachePaths.push(`${post.filePathname.replace(/^\//, "").replace(/\/$/, "")}/index.html`);
+    } else if (data.cachedHtml?.has(name)) {
+      const fileSlug = slugify(name);
+      const filePathname = `/blog/${fileSlug}/`;
+      await write(path.join(filePathname, "index.html"), data.cachedHtml.get(name));
+      urls.push({ pathname: `/blog/${pathSegment(name)}/` });
+      cachePaths.push(`blog/${fileSlug}/index.html`);
+    }
+  }
+
+  for (const [slug, comments] of Object.entries(data.approvedComments || {})) {
+    await write(path.join("comments", `${slug}.json`), `${JSON.stringify(comments, null, 2)}\n`);
+    cachePaths.push(`comments/${slug}.json`);
   }
 
   await write("sitemap.xml", sitemap(urls));
@@ -598,10 +756,15 @@ async function build() {
   await write("og-default.svg", '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630"><rect width="1200" height="630" fill="#f5f4ef"/><circle cx="1040" cy="100" r="240" fill="#fff0b8"/><text x="90" y="290" font-family="Arial,sans-serif" font-size="88" font-weight="700" fill="#181916">Anas Al-Merstani</text><text x="95" y="380" font-family="Arial,sans-serif" font-size="34" fill="#686b63">Developer</text><text x="95" y="535" font-family="Arial,sans-serif" font-size="28" font-weight="700" fill="#a66f00">anasmerstani.com</text></svg>');
   await copy(path.join(root, "src"), path.join(dist, "assets"));
   await copyFonts();
+  await copyVendorScripts();
   await copy(path.join(root, "public"), dist);
   const iconData = await fs.readFile(path.join(dist, "square.png"));
   const embeddedIcon = iconData.toString("base64");
   await write("favicon.svg", `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><defs><clipPath id="circle"><circle cx="256" cy="256" r="248"/></clipPath></defs><image width="512" height="512" href="data:image/png;base64,${embeddedIcon}" preserveAspectRatio="xMidYMid slice" clip-path="url(#circle)"/></svg>`);
+
+  await publishSiteCache(["blog/index.html", ...cachePaths]);
+  await clearManifestAfterBuild(data.manifest || { posts: [], commentPages: [] });
+
   console.log(`Done: ${urls.length} URLs generated in dist`);
 }
 

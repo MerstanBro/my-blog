@@ -10,7 +10,12 @@
  *   GITLAB_WEBHOOK_SECRET
  *   VERCEL_DEPLOY_HOOK_URL
  *   GITLAB_REF (optional, defaults to main)
+ *
+ * Commits whose messages all contain [skip rebuild] do not trigger a deploy
+ * (likes, pending comments, leaderboard, manifest clear, site-cache).
  */
+
+import { allowedContentRef, shouldSkipRebuild } from "../lib/webhook.mjs";
 
 export default async function handler(request, response) {
   if (request.method !== "POST") {
@@ -20,7 +25,7 @@ export default async function handler(request, response) {
 
   const expectedSecret = process.env.GITLAB_WEBHOOK_SECRET;
   const deployHook = process.env.VERCEL_DEPLOY_HOOK_URL;
-  const allowedRef = `refs/heads/${process.env.GITLAB_REF || "main"}`;
+  const branch = process.env.GITLAB_REF || "main";
 
   if (!expectedSecret || !deployHook) {
     return response.status(503).json({
@@ -39,14 +44,21 @@ export default async function handler(request, response) {
 
   const payload = request.body || {};
   const event = request.headers["x-gitlab-event"] || "unknown";
-  const ref = payload.ref;
+  const refCheck = allowedContentRef(payload.ref, branch);
 
-  // Only rebuild for pushes to the content branch (usually main).
-  if (ref && ref !== allowedRef) {
+  if (payload.ref && !refCheck.ok) {
     return response.status(200).json({
       ok: true,
       skipped: true,
-      reason: `Ignored ref ${ref}; expected ${allowedRef}`,
+      reason: `Ignored ref ${payload.ref}; expected ${refCheck.allowed}`,
+    });
+  }
+
+  if (shouldSkipRebuild(payload, request.headers)) {
+    return response.status(200).json({
+      ok: true,
+      skipped: true,
+      reason: "Commit message contains [skip rebuild]",
     });
   }
 
@@ -72,7 +84,7 @@ export default async function handler(request, response) {
     return response.status(200).json({
       ok: true,
       event,
-      ref: ref || allowedRef,
+      ref: payload.ref || refCheck.allowed,
       deploy: body,
     });
   } catch (error) {

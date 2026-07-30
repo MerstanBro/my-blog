@@ -1,8 +1,6 @@
-# Static portfolio and blog
+# Static portfolio and blog (v2)
 
-A fast static site generated from the GitLab content repository. The browser receives semantic HTML, one CSS file, and small vanilla JavaScript modules.
-
-This repo root is the production app (the old Next.js app has been removed).
+A fast static site generated from the GitLab/Obsidian content repository. The browser receives semantic HTML, CSS, and small vanilla JavaScript modules. Runtime writes (comments, likes, leaderboard) go back into the same vault via server-side GitLab APIs — no Supabase or other database.
 
 ## Local preview
 
@@ -13,79 +11,107 @@ npm run dev
 
 `npm run dev` uses built-in demo content, so GitLab credentials are not required.
 
+## Tests
+
+```bash
+npm test
+```
+
+Uses Node’s built-in test runner (`node:test`). Content-repo review tests:
+
+```bash
+cd ../blog
+python -m unittest tests/test_process_review.py
+```
+
 ## Production build
 
-Copy `.env.example` to `.env` (or keep your existing `.env`).
-Accepted names:
+Copy `.env.example` to `.env`. Required:
 
-- `GITLAB_PROJECT_ID` or `NEXT_PUBLIC_GITLAB_PROJECT_ID`
-- `GITLAB_TOKEN` or `NEXT_PUBLIC_GITLAB_TOKEN`
+- `GITLAB_PROJECT_ID`
+- `GITLAB_TOKEN` — **read + write** on the content project (`api` scope, or `read_repository` + `write_repository`). Server-only; do not use `NEXT_PUBLIC_*` for a write token.
 - `GITLAB_REF` (defaults to `main`)
 - `SITE_URL`
-- `SUPABASE_URL`
-- `SUPABASE_ANON_KEY`
 - `GITLAB_WEBHOOK_SECRET` / `VERCEL_DEPLOY_HOOK_URL` (CMS auto-rebuild)
 
-Then run:
+Optional:
+
+- `SITE_CACHE_REF` (default `site-cache`) — branch for prior HTML used by incremental builds
+- `SKIP_SITE_CACHE=1` — skip uploading cache during build
 
 ```bash
 npm run build
 ```
 
-The deployable site is written to `dist/`. Images are copied from `public/`.
+Output is `dist/`.
 
 ## Vercel
 
-- **Root Directory:** repository root (not `new/`)
+- **Root Directory:** repository root
 - **Build Command:** `npm run build`
 - **Output Directory:** `dist`
-- Env vars: same as `.env.example`
+- Env vars: same as `.env.example` (token stays on the server / build)
 
-## Content format
+## Content format (GitLab vault)
 
-The generator preserves the existing GitLab layout:
+- `content.json` — portfolio, projects, social links
+- `details.json` / `pages/` / `tags/` — listings
+- post `*.md` — YAML front matter + markdown
+- `comments/approved/{slug}.json` — published comments
+- `likes/{slug}.json` — like counts + device ids
+- `leaderboard.json` — type-race scores
+- `rebuild-manifest.json` — dirty posts / comment pages / full flag
+- `Review/` — Obsidian inbox for moderation
 
-- `content.json` — portfolio, projects, social links, and leaderboard seed
-- `details.json` — page count and tag metadata
-- `pages/{number}.json` — blog listings
-- `tags/{tag}/{number}.json` — tag listings
-- post files — markdown with YAML front matter
+### Obsidian review loop
+
+1. Open `Review/Home.md`
+2. Open a pending note under `Review/Pending/`
+3. Set frontmatter `decision:` to `accept` or `reject`
+4. Commit & push with Obsidian Git
+
+Pre-commit runs `process_review.py` then `generate_repo_structure.py`.
+
+### Mermaid and charts
+
+In any post:
+
+````markdown
+```mermaid
+flowchart LR
+  A --> B
+```
+
+```chart
+{ "type": "bar", "data": { "labels": ["a"], "datasets": [{ "data": [1] }] } }
+```
+````
+
+### Rebuild manifest
+
+- `full: true` → fetch and regenerate everything
+- Otherwise the build reuses HTML from the `site-cache` branch for unchanged posts and only re-fetches dirty markdown
+- After a successful production build, processed entries are cleared with a `[skip rebuild]` commit
 
 ## Runtime architecture
 
-- Blog pages and metadata are generated at build time.
-- Light/dark theme and mobile navigation live in `src/main.js`.
-- The typing race is a standalone vanilla module in `src/type-race.js`.
-- Score submission uses the Vercel function at `api/leaderboard.js`.
-- CMS auto-rebuild uses `api/content-webhook.js`.
-- GitLab and Supabase credentials never ship to the browser.
+| Endpoint | Role |
+|----------|------|
+| `POST /api/comments` | Create `Review/Pending/*.md` |
+| `GET/POST /api/likes` | Read/write `likes/{slug}.json` (one like per device id) |
+| `POST /api/leaderboard` | Append to `leaderboard.json` |
+| `POST /api/content-webhook` | GitLab push → Vercel deploy (skips `[skip rebuild]`) |
+
+The GitLab token never ships to the browser. Client JS only calls `/api/*`.
 
 ## Auto-update when CMS content changes
 
-The live site is static. New posts appear after a rebuild. To rebuild automatically when you push to the content GitLab repo:
-
-### 1. Create a Vercel Deploy Hook
-
-1. Open your Vercel project → **Settings** → **Git** → **Deploy Hooks**
-2. Create a hook named `cms-rebuild` for the production branch
-3. Copy the hook URL
-4. In Vercel → **Settings** → **Environment Variables**, add:
-   - `VERCEL_DEPLOY_HOOK_URL` = that hook URL
-   - `GITLAB_WEBHOOK_SECRET` = a long random string you invent
-   - Keep existing `GITLAB_PROJECT_ID`, `GITLAB_TOKEN`, etc.
-
-### 2. Add a GitLab webhook on the **content** repo
-
-1. Open the CMS GitLab project → **Settings** → **Webhooks**
-2. URL: `https://anasmerstani.com/api/content-webhook`
-3. Secret token: the same value as `GITLAB_WEBHOOK_SECRET`
-4. Trigger: **Push events**
-5. Save, then click **Test** → **Push events**
-
-Flow:
+1. Vercel → **Settings** → **Git** → **Deploy Hooks** → create `cms-rebuild`
+2. Set `VERCEL_DEPLOY_HOOK_URL` and `GITLAB_WEBHOOK_SECRET` on Vercel
+3. GitLab content project → **Webhooks** → `https://anasmerstani.com/api/content-webhook` with the same secret, **Push events**
 
 ```
-CMS push to main → GitLab webhook → /api/content-webhook → Vercel Deploy Hook → rebuild → live site updates
+CMS push (no [skip rebuild]) → /api/content-webhook → Vercel Deploy Hook → rebuild
 ```
 
-Only pushes to `GITLAB_REF` (default `main`) trigger a rebuild.
+Runtime commits (likes, pending comments, leaderboard, manifest clear, site-cache) include `[skip rebuild]` and do not redeploy.
