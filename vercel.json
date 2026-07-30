@@ -1,0 +1,44 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "cleanUrls": true,
+  "trailingSlash": true,
+  "headers": [
+    {
+      "source": "/assets/fonts/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/blog",
+      "has": [
+        { "type": "query", "key": "tag", "value": "(?<tag>[^&]+)" },
+        { "type": "query", "key": "page", "value": "(?<page>[0-9]+)" }
+      ],
+      "destination": "/blog/tag/:tag/page/:page/",
+      "permanent": true
+    },
+    {
+      "source": "/blog",
+      "has": [
+        { "type": "query", "key": "tag", "value": "(?<tag>[^&]+)" }
+      ],
+      "destination": "/blog/tag/:tag/",
+      "permanent": true
+    },
+    {
+      "source": "/blog",
+      "has": [
+        { "type": "query", "key": "page", "value": "(?<page>[0-9]+)" }
+      ],
+      "destination": "/blog/page/:page/",
+      "permanent": true
+    }
+  ]
+}
