@@ -7,17 +7,17 @@
   const storageKey = `comments-open:${slug || location.pathname}`;
 
   mount.innerHTML = `
-    <section class="comments-panel" data-comments-panel>
-      <button type="button" class="comments-toggle" data-comments-toggle aria-expanded="false" aria-controls="comments-drawer">
+    <section class="comments-panel is-loading" data-comments-panel aria-busy="true">
+      <button type="button" class="comments-toggle" data-comments-toggle aria-expanded="false" aria-controls="comments-drawer" disabled>
         <span class="comments-toggle-copy">
           <span class="section-kicker">Conversation</span>
           <span class="comments-toggle-title">Comments <span class="comments-count" data-comments-count></span></span>
-          <span class="comments-toggle-hint" data-comments-hint>Show discussion</span>
+          <span class="comments-toggle-hint" data-comments-hint>Loading…</span>
         </span>
         <span class="comments-toggle-icon" aria-hidden="true"></span>
       </button>
 
-      <div class="comments-drawer" id="comments-drawer" data-comments-drawer>
+      <div class="comments-drawer" id="comments-drawer" data-comments-drawer inert>
         <div class="comments-drawer-inner">
           <p class="comments-lead">Thoughtful notes welcome. New comments are reviewed before they appear.</p>
 
@@ -33,19 +33,19 @@
             <div class="comment-fields">
               <label class="comment-field comment-field-name">
                 <span>Name</span>
-                <input name="author" type="text" maxlength="60" required autocomplete="name" placeholder="Your name">
+                <input name="author" type="text" maxlength="60" required autocomplete="name" placeholder="Your name" disabled>
               </label>
               <label class="comment-field comment-field-body">
                 <span>Comment</span>
-                <textarea name="body" rows="5" maxlength="4000" required placeholder="What stayed with you?"></textarea>
+                <textarea name="body" rows="5" maxlength="4000" required placeholder="What stayed with you?" disabled></textarea>
               </label>
             </div>
             <label class="comment-honeypot" aria-hidden="true">
               <span>Website</span>
-              <input name="website" type="text" tabindex="-1" autocomplete="off">
+              <input name="website" type="text" tabindex="-1" autocomplete="off" disabled>
             </label>
             <div class="comment-form-actions">
-              <button class="button primary" type="submit" data-comment-submit>Submit for review</button>
+              <button class="button primary" type="submit" data-comment-submit disabled>Submit for review</button>
               <p class="comment-status" data-comment-status hidden role="status"></p>
             </div>
           </form>
@@ -56,12 +56,14 @@
 
   const panel = mount.querySelector("[data-comments-panel]");
   const toggle = mount.querySelector("[data-comments-toggle]");
+  const drawer = mount.querySelector("[data-comments-drawer]");
   const hint = mount.querySelector("[data-comments-hint]");
   const list = mount.querySelector("[data-comments-list]");
   const countEl = mount.querySelector("[data-comments-count]");
   const form = mount.querySelector("[data-comment-form]");
   const status = mount.querySelector("[data-comment-status]");
   const submit = mount.querySelector("[data-comment-submit]");
+  let ready = false;
 
   function escapeHtml(value = "") {
     return String(value)
@@ -94,7 +96,29 @@
     countEl.textContent = n > 0 ? `(${n})` : "";
   }
 
+  function setFormEnabled(enabled) {
+    form?.querySelectorAll("input, textarea, button").forEach((el) => {
+      el.disabled = !enabled;
+    });
+  }
+
+  function setReady(enabled) {
+    ready = enabled;
+    panel?.classList.toggle("is-loading", !enabled);
+    panel?.setAttribute("aria-busy", String(!enabled));
+    if (toggle) toggle.disabled = !enabled;
+    if (drawer) {
+      if (enabled) drawer.removeAttribute("inert");
+      else drawer.setAttribute("inert", "");
+    }
+    setFormEnabled(enabled);
+    if (hint && !panel?.classList.contains("is-open")) {
+      hint.textContent = enabled ? "Show discussion" : "Loading…";
+    }
+  }
+
   function setOpen(open) {
+    if (!ready && open) return;
     panel?.classList.toggle("is-open", open);
     toggle?.setAttribute("aria-expanded", String(open));
     if (hint) hint.textContent = open ? "Hide discussion" : "Show discussion";
@@ -117,18 +141,21 @@
   async function loadApproved() {
     if (!slug) {
       emptyState("No comments yet.");
+      setReady(true);
       return;
     }
     try {
       const response = await fetch(`/comments/${encodeURIComponent(slug)}.json`);
       if (response.status === 404) {
         emptyState("No comments yet. Be the first to leave one.");
+        setReady(true);
         return;
       }
       if (!response.ok) throw new Error("failed");
       const comments = await response.json();
       if (!Array.isArray(comments) || !comments.length) {
         emptyState("No comments yet. Be the first to leave one.");
+        setReady(true);
         return;
       }
       setCount(comments.length);
@@ -147,17 +174,21 @@
           </article>`;
         })
         .join("");
+      setReady(true);
     } catch {
       emptyState("Comments unavailable right now.");
+      setReady(true);
     }
   }
 
   toggle?.addEventListener("click", () => {
+    if (!ready || toggle.disabled) return;
     setOpen(!panel.classList.contains("is-open"));
   });
 
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (!ready) return;
     status.hidden = true;
     status.classList.remove("is-success", "is-error");
     const data = new FormData(form);
@@ -197,12 +228,14 @@
     }
   });
 
-  let shouldOpen = false;
-  try {
-    shouldOpen = sessionStorage.getItem(storageKey) === "1";
-  } catch {
-    shouldOpen = false;
-  }
-  setOpen(shouldOpen);
-  loadApproved();
+  setReady(false);
+  loadApproved().then(() => {
+    let shouldOpen = false;
+    try {
+      shouldOpen = sessionStorage.getItem(storageKey) === "1";
+    } catch {
+      shouldOpen = false;
+    }
+    if (shouldOpen) setOpen(true);
+  });
 })();

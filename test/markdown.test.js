@@ -6,6 +6,7 @@ describe("markdown fences", () => {
   it("renders mermaid blocks", () => {
     const result = transformCodeFence("mermaid", "flowchart LR\nA-->B");
     assert.match(result.html, /class="mermaid"/);
+    assert.match(result.html, /mermaid-block/);
     assert.equal(result.hasMermaid, true);
   });
 

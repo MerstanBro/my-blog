@@ -30,9 +30,14 @@
 
   if (!mount.querySelector("[data-like-button]")) {
     mount.innerHTML = `
-      <button type="button" class="like-button" data-like-button aria-pressed="false">
-        <span data-like-label>Like</span>
-        <span class="like-count" data-like-count>0</span>
+      <button type="button" class="like-button is-loading" data-like-button aria-pressed="false" disabled aria-busy="true">
+        <span class="like-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M12 20s-7.2-4.35-9.3-8.1C1.2 9.3 2.4 5.8 5.7 5.2c1.9-.35 3.7.55 4.8 2 1.1-1.45 2.9-2.35 4.8-2 3.3.6 4.5 4.1 3 6.7C19.2 15.65 12 20 12 20Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+        </span>
+        <span class="like-copy">
+          <span class="like-label" data-like-label>Like</span>
+          <span class="like-count" data-like-count>—</span>
+        </span>
       </button>
       <p class="like-status" data-like-status hidden></p>
     `;
@@ -44,6 +49,7 @@
   const labelEl = mount.querySelector("[data-like-label]");
   const statusEl = mount.querySelector("[data-like-status]");
   let busy = false;
+  let ready = false;
 
   function setStatus(message, kind = "") {
     if (!statusEl) return;
@@ -60,29 +66,39 @@
     if (!button) return;
     button.classList.toggle("is-liked", liked);
     button.classList.toggle("is-pending", pending);
-    button.disabled = liked || pending || busy;
+    button.classList.toggle("is-loading", !ready);
+    button.disabled = !ready || liked || pending || busy;
+    button.setAttribute("aria-busy", String(!ready || pending));
     button.setAttribute("aria-pressed", String(liked));
     if (labelEl) {
-      if (pending) labelEl.textContent = "Saving";
+      if (!ready) labelEl.textContent = "Like";
+      else if (pending) labelEl.textContent = "Saving";
       else labelEl.textContent = liked ? "Liked" : "Like";
     }
   }
 
   async function refresh() {
-    if (!slug || !id) return;
+    if (!slug || !id) {
+      ready = true;
+      render({ count: 0, liked: false });
+      return;
+    }
     try {
       const response = await fetch(
         `/api/likes?slug=${encodeURIComponent(slug)}&deviceId=${encodeURIComponent(id)}`,
       );
-      if (!response.ok) return;
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      ready = true;
       render(await response.json());
     } catch {
-      // Button stays usable; click will surface errors.
+      ready = true;
+      render({ count: Number(countEl?.textContent) || 0, liked: false });
+      setStatus("Likes unavailable right now.", "error");
     }
   }
 
   button?.addEventListener("click", async () => {
-    if (!slug || !id || busy || button.disabled) return;
+    if (!ready || !slug || !id || busy || button.disabled) return;
     busy = true;
     const previousCount = Number(countEl?.textContent);
     const optimistic = Number.isFinite(previousCount) ? previousCount + 1 : 1;
@@ -103,7 +119,7 @@
           liked: true,
           pending: false,
         });
-        setStatus(response.status === 409 ? "Already liked from this device." : "Liked.", "success");
+        setStatus("");
         return;
       }
 
@@ -127,10 +143,11 @@
     } finally {
       busy = false;
       if (button && button.getAttribute("aria-pressed") !== "true") {
-        button.disabled = false;
+        button.disabled = !ready;
       }
     }
   });
 
+  render({ pending: false, liked: false });
   refresh();
 })();

@@ -6,6 +6,7 @@ import dotenv from "dotenv";
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
 const dist = path.join(rootDir, "dist");
+const srcDir = path.join(rootDir, "src");
 const port = Number(process.env.PORT || 4173);
 
 dotenv.config({ path: path.join(rootDir, ".env") });
@@ -95,6 +96,23 @@ http
         response.writeHead(404, { "content-type": "application/json; charset=utf-8" });
         response.end(JSON.stringify({ error: "Not found" }));
         return;
+      }
+
+      // Prefer live src assets during local preview so JS/CSS edits apply without rebuild.
+      if (pathname.startsWith("/assets/") && !pathname.includes("..")) {
+        const assetName = pathname.slice("/assets/".length);
+        const live = path.join(srcDir, assetName);
+        try {
+          const body = await fs.readFile(live);
+          response.writeHead(200, {
+            "content-type": types[path.extname(live)] || "application/octet-stream",
+            "cache-control": "no-cache",
+          });
+          response.end(body);
+          return;
+        } catch {
+          // Fall through to dist (fonts/vendor/copied files).
+        }
       }
 
       const relative = pathname.replace(/^\/+/, "");
