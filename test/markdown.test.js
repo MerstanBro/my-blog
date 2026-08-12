@@ -28,3 +28,37 @@ describe("markdown fences", () => {
     assert.equal(result.hasMermaid, true);
   });
 });
+
+describe("youtube embeds", () => {
+  it("converts watch URLs to nocookie iframes", () => {
+    const result = markdownHtml("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+    assert.match(result.html, /class="video"/);
+    assert.match(result.html, /youtube-nocookie\.com\/embed\/dQw4w9WgXcQ/);
+  });
+
+  it("converts youtu.be URLs", () => {
+    const result = markdownHtml("https://youtu.be/dQw4w9WgXcQ");
+    assert.match(result.html, /youtube-nocookie\.com\/embed\/dQw4w9WgXcQ/);
+  });
+
+  it("converts embed URLs", () => {
+    const result = markdownHtml("https://www.youtube.com/embed/dQw4w9WgXcQ");
+    assert.match(result.html, /youtube-nocookie\.com\/embed\/dQw4w9WgXcQ/);
+    assert.match(result.html, /class="video"/);
+  });
+
+  it("wraps raw YouTube iframes in .video", () => {
+    const result = markdownHtml(
+      '<iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ" title="YouTube video" allowfullscreen></iframe>',
+    );
+    assert.match(result.html, /<div class="video"><iframe[^>]*youtube\.com\/embed\/dQw4w9WgXcQ/);
+    assert.equal((result.html.match(/class="video"/g) || []).length, 1);
+  });
+
+  it("does not double-wrap already wrapped iframes", () => {
+    const result = markdownHtml(
+      '<div class="video"><iframe src="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ"></iframe></div>',
+    );
+    assert.equal((result.html.match(/class="video"/g) || []).length, 1);
+  });
+});
