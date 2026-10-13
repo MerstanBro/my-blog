@@ -24,6 +24,8 @@ const types = {
   ".webmanifest": "application/manifest+json",
   ".xml": "application/xml; charset=utf-8",
   ".woff2": "font/woff2",
+  ".webp": "image/webp",
+  ".avif": "image/avif",
 };
 
 async function readBody(request) {

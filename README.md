@@ -45,6 +45,12 @@ npm run build
 
 Output is `dist/`.
 
+The build also optimizes output for delivery:
+
+- Images in `public/images/` are converted to AVIF/WebP variants (640w/1280w) with a resized JPEG/PNG fallback; templates emit `<picture>`
+- CSS and JavaScript are minified, HTML whitespace outside `<pre>`/`<textarea>`/`<script>`/`<style>` is collapsed
+- Requires the `sharp` and `esbuild` devDependencies (installed by `npm install`)
+
 ## Vercel
 
 - **Root Directory:** repository root

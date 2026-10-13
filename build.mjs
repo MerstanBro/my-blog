@@ -6,7 +6,9 @@ import { createFsHelpers } from "./lib/build-fs.js";
 import { createContentLoader } from "./lib/content-load.js";
 import { createGitlabClient } from "./lib/gitlab.js";
 import { pathSegment, postSlugFromName, slugify } from "./lib/html-utils.js";
+import { createImageOptimizer } from "./lib/images.js";
 import { clearProcessedManifest, serializeManifest } from "./lib/manifest.js";
+import { minifyCss, minifyHtml, minifyJs } from "./lib/minify.js";
 import { cacheRef } from "./lib/site-cache.js";
 import { demo, site } from "./lib/site-config.js";
 import { createTemplates } from "./lib/templates.js";
@@ -23,7 +25,38 @@ const projectId = process.env.GITLAB_PROJECT_ID || process.env.NEXT_PUBLIC_GITLA
 const token = process.env.GITLAB_TOKEN || process.env.NEXT_PUBLIC_GITLAB_TOKEN;
 const ref = process.env.GITLAB_REF || "main";
 
-const { write, copy, copyFonts, copyVendorScripts } = createFsHelpers({ root, dist });
+const images = createImageOptimizer({ root, dist });
+
+async function minifyAsset(relativePath, transform) {
+  try {
+    const absolute = path.join(dist, relativePath);
+    const body = await fs.readFile(absolute, "utf8");
+    await fs.writeFile(absolute, (await transform(body)).trimEnd(), "utf8");
+    return true;
+  } catch (error) {
+    console.warn(`minify skip ${relativePath}:`, error.message);
+    return false;
+  }
+}
+
+async function minifyAssets() {
+  const assetFiles = ["styles.css", "main.js", "likes.js", "comments.js", "diagrams.js", "type-race.js"];
+  const results = await Promise.all(
+    assetFiles.map((file) =>
+      minifyAsset(path.join("assets", file), file.endsWith(".css") ? minifyCss : minifyJs),
+    ),
+  );
+  return results.filter(Boolean).length;
+}
+
+const fsHelpers = createFsHelpers({ root, dist });
+const { write: writeRaw, copy, copyFonts, copyVendorScripts } = fsHelpers;
+
+const write = async (relativePath, value) => {
+  const html = relativePath.endsWith(".html") ? minifyHtml(value) : value;
+  return writeRaw(relativePath, html);
+};
+
 const { loadContent } = createContentLoader({
   isDemo,
   demo,
@@ -33,7 +66,7 @@ const { loadContent } = createContentLoader({
   postSlugFromName,
   slugify,
 });
-const { homePage, listingPage, postPage, sitemap, listingPath } = createTemplates({ site, siteUrl });
+const { homePage, listingPage, postPage, sitemap, listingPath } = createTemplates({ site, siteUrl, images });
 
 async function clearManifestAfterBuild(manifest) {
   if (isDemo || !projectId || !token) return;
@@ -82,6 +115,9 @@ async function build() {
 
   await fs.rm(dist, { recursive: true, force: true });
   await fs.mkdir(dist, { recursive: true });
+
+  const optimizedImages = await images.optimizeAllImages();
+  if (optimizedImages) console.log(`Optimized ${optimizedImages} images into AVIF/WebP variants`);
 
   const urls = [{ pathname: "/" }, { pathname: "/blog/" }];
   await write("index.html", homePage(data.content));
@@ -150,6 +186,7 @@ async function build() {
   }));
   await write("og-default.svg", '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630"><rect width="1200" height="630" fill="#f5f4ef"/><circle cx="1040" cy="100" r="240" fill="#fff0b8"/><text x="90" y="290" font-family="Arial,sans-serif" font-size="88" font-weight="700" fill="#181916">Anas Al-Merstani</text><text x="95" y="380" font-family="Arial,sans-serif" font-size="34" fill="#686b63">Developer</text><text x="95" y="535" font-family="Arial,sans-serif" font-size="28" font-weight="700" fill="#a66f00">anasmerstani.com</text></svg>');
   await copy(path.join(root, "src"), path.join(dist, "assets"));
+  const minifiedAssets = await minifyAssets();
   await copyFonts();
   await copyVendorScripts();
   await copy(path.join(root, "public"), dist);
@@ -160,7 +197,7 @@ async function build() {
   await publishSiteCache(["blog/index.html", ...cachePaths]);
   await clearManifestAfterBuild(data.manifest || { posts: [], commentPages: [] });
 
-  console.log(`Done: ${urls.length} URLs generated in dist`);
+  console.log(`Done: ${urls.length} URLs generated in dist (${minifiedAssets} assets minified)`);
 }
 
 build().catch((error) => {

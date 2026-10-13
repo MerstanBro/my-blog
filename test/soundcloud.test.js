@@ -3,6 +3,11 @@ import { describe, it } from "node:test";
 import { normalizeSoundCloudUrl, soundCloudEmbedHtml } from "../lib/html-utils.js";
 import { createTemplates } from "../lib/templates.js";
 
+// Stubs for the image optimizer used by templates (no variants available in tests).
+const images = {
+  markup: (src, options = {}) => `<img src="${src}"${options.className ? ` class="${options.className}"` : ""}>`,
+};
+
 describe("soundcloud helpers", () => {
   it("normalizes track URLs and strips UTM query params", () => {
     assert.equal(
@@ -38,6 +43,7 @@ describe("postPage song block", () => {
   const { postPage } = createTemplates({
     site: { name: "Test", role: "Developer", description: "Test site" },
     siteUrl: "https://example.com",
+    images,
   });
 
   it("injects SoundCloud player when song frontmatter is set", () => {
@@ -81,6 +87,7 @@ describe("homePage top songs", () => {
   const { homePage } = createTemplates({
     site: { name: "Test", role: "Developer", description: "Test site" },
     siteUrl: "https://example.com",
+    images,
   });
 
   it("renders up to three SoundCloud players from content.songs", () => {
@@ -115,3 +122,4 @@ describe("homePage top songs", () => {
     assert.doesNotMatch(html, /id="songs"/);
   });
 });
+

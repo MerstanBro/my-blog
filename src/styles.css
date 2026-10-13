@@ -124,12 +124,14 @@ body::before {
 a {
   color: inherit;
   text-decoration: none;
+  -webkit-tap-highlight-color: color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
 button,
 input {
   color: inherit;
   font: inherit;
+  -webkit-tap-highlight-color: color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
 button {
@@ -636,6 +638,8 @@ html[data-theme="dark"] .theme-icon-dark {
   gap: 2rem;
   padding-bottom: 3.5rem;
   border-bottom: 1px solid var(--line);
+  content-visibility: auto;
+  contain-intrinsic-size: auto 320px;
 }
 
 .post-image-link {
@@ -807,6 +811,12 @@ html[data-theme="dark"] .theme-icon-dark {
   max-width: 780px;
   margin: 3.5rem 0 0;
   font-size: 1.08rem;
+}
+
+/* Skip layout/paint for offscreen article sections — long posts render faster. */
+.article-body > * {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 500px;
 }
 
 .article-shell[dir="rtl"] .article-header,
