@@ -1,6 +1,7 @@
 import { createPendingComment, pendingNoteFilename, sanitizeAuthor } from "../lib/comments.js";
 import { createGitlabClient, gitlabConfig } from "../lib/gitlab.js";
 import { appendPendingToHome } from "../lib/review-notes.js";
+import { notifyComment } from "../lib/telegram.js";
 import { getJsonBody } from "./_parse.js";
 
 export const config = {
@@ -32,8 +33,9 @@ export default async function handler(request, response) {
     const result = await createPendingComment(gitlab, body);
     const author = sanitizeAuthor(body.author || body.name) || "Anonymous";
 
-    // Home refresh is best-effort and must not fail the submit.
-    Promise.resolve(
+    // Both are best-effort and run together. They are awaited because serverless functions may be
+    // frozen once the response is sent, which would silently drop the Telegram message.
+    const [home, telegram] = await Promise.allSettled([
       appendPendingToHome(gitlab, {
         name: pendingNoteFilename({
           id: result.id,
@@ -48,7 +50,18 @@ export default async function handler(request, response) {
           .replace(/\s+/g, " ")
           .slice(0, 120),
       }),
-    ).catch((error) => console.warn("appendPendingToHome failed:", error.message));
+      notifyComment({
+        id: result.id,
+        slug: result.postSlug,
+        author,
+        body: String(body.body || body.comment || "").trim(),
+        path: typeof body.pagePath === "string" ? body.pagePath : "",
+      }),
+    ]);
+    if (home.status === "rejected") console.warn("appendPendingToHome failed:", home.reason?.message);
+    if (telegram.status === "fulfilled" && telegram.value?.skipped) {
+      console.warn("Telegram is not configured (TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID).");
+    }
 
     return response.status(200).json({
       ok: true,

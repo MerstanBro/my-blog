@@ -11,6 +11,15 @@ npm run dev
 
 `npm run dev` uses built-in demo content, so GitLab credentials are not required.
 
+To preview your **real posts** while writing in Obsidian (read-only, nothing is committed or pushed):
+
+```bash
+npm run dev:local      # builds from ../blog (your vault checkout) and serves it
+node build.mjs --local="D:/path/to/vault"   # or point at another folder
+```
+
+> The preview server's `/api/likes` and `/api/comments` talk to the **real** GitLab repo (and Telegram) using your `.env`, so a Like or comment sent from the preview is a real one.
+
 ## Tests
 
 ```bash
@@ -36,6 +45,7 @@ Copy `.env.example` to `.env`. Required:
 
 Optional:
 
+- `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` — get a Telegram message for every new like and comment (see below)
 - `SITE_CACHE_REF` (default `site-cache`) — branch for prior HTML used by incremental builds
 - `SKIP_SITE_CACHE=1` — skip uploading cache during build
 
@@ -78,6 +88,46 @@ The build also optimizes output for delivery:
 
 Pre-commit runs `process_review.py` then `generate_repo_structure.py`.
 
+### Quran verses
+
+Write the reference; the Arabic (Uthmani script) and an English translation are fetched at build time from [api.alquran.cloud](https://alquran.cloud/api) (Tanzil text) and cached in `.cache/quran.json`:
+
+````markdown
+```quran
+2:255
+```
+````
+
+| You write | You get |
+|-----------|---------|
+| `2:255` | one verse |
+| `18:1-5` | a range (up to 40 verses), numbered with ornate verse-end markers |
+| `translation: en.asad` | another [edition](https://api.alquran.cloud/v1/edition?format=text&type=translation) (default `en.sahih`; `none` for Arabic only) |
+| Arabic lines under the reference | your own Arabic replaces the fetched text |
+| non-Arabic lines under the reference | your own translation replaces the fetched one |
+
+Posts written in Arabic default to no translation. The card links to Quran.com and has a Copy button. In production (`npm run build`) the build **fails** if a verse can't be fetched, so a post is never published with a missing verse; local/demo builds fall back to a "Read on Quran.com" card instead.
+
+### Quotes, hadith, callouts and references
+
+```markdown
+> The unexamined life is not worth living.
+> — Socrates, *Apology*              <- last line starting with — becomes the attribution
+
+> [!hadith] Sahih al-Bukhari 1      <- title is shown as the source
+> إنما الأعمال بالنيات
+
+> [!tip] Optional title              <- also: note, info, warning, important, example, quote, dua
+> Obsidian-style callout.
+
+Some claim.[^1] Another.[^src]
+
+[^1]: A reference shown in a "References" list at the end, with back-links.
+[^src]: Footnotes can be named, too.
+```
+
+Arabic inside an English post is wrapped automatically (right font and direction), and a paragraph that starts in Arabic reads right-to-left. Articles with three or more `##`/`###` headings get an "In this article" contents box and `#` deep-link anchors.
+
 ### Mermaid and charts
 
 In any post:
@@ -109,6 +159,20 @@ flowchart LR
 | `POST /api/content-webhook` | GitLab push → Vercel deploy (skips `[skip rebuild]`) |
 
 The GitLab token never ships to the browser. Client JS only calls `/api/*`.
+
+## Telegram notifications
+
+Every new comment (full text, with a link to the post) and every new like (with the running total) is sent to your Telegram.
+
+1. In Telegram, message [@BotFather](https://t.me/BotFather) → `/newbot` → copy the token.
+2. Put it in `.env` as `TELEGRAM_BOT_TOKEN=...`, send your new bot any message, then run:
+   ```bash
+   npm run telegram:setup -- --write
+   ```
+   It finds your chat id, saves `TELEGRAM_CHAT_ID` to `.env` and sends a test message.
+3. Add **both** variables in Vercel → Settings → Environment Variables and redeploy.
+
+Notifications never block a like or comment from being saved, are HTML-escaped, and are capped at 20 per minute per server instance so scripted spam can't flood your phone. Without the variables set, nothing is sent.
 
 ## Auto-update when CMS content changes
 

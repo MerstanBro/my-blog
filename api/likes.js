@@ -1,6 +1,7 @@
 import { createGitlabClient, gitlabConfig } from "../lib/gitlab.js";
 import { addLike, getLikeStatus } from "../lib/likes.js";
 import { refreshLikesMarkdown } from "../lib/review-notes.js";
+import { notifyLike } from "../lib/telegram.js";
 import { getJsonBody, getQuery } from "./_parse.js";
 
 export const config = {
@@ -47,6 +48,12 @@ export default async function handler(request, response) {
       const slug = String(body.slug || body.postSlug || "").trim();
       const deviceId = String(body.deviceId || "").trim();
       const result = await addLike(gitlab, slug, deviceId, { refreshReview: refreshLikes });
+      // Awaited (short timeout, never throws) so a serverless freeze can't drop the message.
+      await notifyLike({
+        slug,
+        count: result.count,
+        path: typeof body.pagePath === "string" ? body.pagePath : "",
+      });
       return response.status(200).json(result);
     }
 

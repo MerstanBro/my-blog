@@ -28,7 +28,7 @@
           <form class="comment-form" data-comment-form novalidate>
             <div class="comment-form-head">
               <h3>Write a reply</h3>
-              <p class="comment-note">Held for review — usually published after you approve it in Obsidian.</p>
+              <p class="comment-note">Comments are read before they’re published, usually within a day or two.</p>
             </div>
             <div class="comment-fields">
               <label class="comment-field comment-field-name">
@@ -36,8 +36,8 @@
                 <input name="author" type="text" maxlength="60" required autocomplete="name" placeholder="Your name" disabled>
               </label>
               <label class="comment-field comment-field-body">
-                <span>Comment</span>
-                <textarea name="body" rows="5" maxlength="4000" required placeholder="What stayed with you?" disabled></textarea>
+                <span class="comment-field-label">Comment <em class="comment-counter" data-comment-counter aria-live="off"></em></span>
+                <textarea name="body" dir="auto" rows="5" maxlength="4000" required placeholder="What stayed with you?" disabled></textarea>
               </label>
             </div>
             <label class="comment-honeypot" aria-hidden="true">
@@ -46,9 +46,19 @@
             </label>
             <div class="comment-form-actions">
               <button class="button primary" type="submit" data-comment-submit disabled>Submit for review</button>
+              <span class="comment-shortcut" aria-hidden="true">or press <kbd>Ctrl</kbd> + <kbd>Enter</kbd></span>
               <p class="comment-status" data-comment-status hidden role="status"></p>
             </div>
           </form>
+
+          <div class="comment-thanks" data-comment-thanks hidden role="status">
+            <span class="comment-thanks-icon" aria-hidden="true">✓</span>
+            <div>
+              <h3>Thank you, <span data-thanks-name></span>.</h3>
+              <p>Your comment is waiting for approval and will appear here once it’s published.</p>
+              <button type="button" class="text-button" data-comment-again>Write another</button>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -63,7 +73,29 @@
   const form = mount.querySelector("[data-comment-form]");
   const status = mount.querySelector("[data-comment-status]");
   const submit = mount.querySelector("[data-comment-submit]");
+  const counter = mount.querySelector("[data-comment-counter]");
+  const thanks = mount.querySelector("[data-comment-thanks]");
+  const AUTHOR_KEY = "comment-author";
   let ready = false;
+
+  function savedAuthor() {
+    try {
+      return localStorage.getItem(AUTHOR_KEY) || "";
+    } catch {
+      return "";
+    }
+  }
+
+  function updateCounter() {
+    const length = form.elements.body.value.length;
+    counter.textContent = length > 3200 ? `${length} / 4000` : "";
+  }
+
+  function fitTextarea() {
+    const field = form.elements.body;
+    field.style.height = "auto";
+    field.style.height = `${Math.min(field.scrollHeight + 2, 420)}px`;
+  }
 
   function escapeHtml(value = "") {
     return String(value)
@@ -100,6 +132,7 @@
     form?.querySelectorAll("input, textarea, button").forEach((el) => {
       el.disabled = !enabled;
     });
+    if (enabled && form && !form.elements.author.value) form.elements.author.value = savedAuthor();
   }
 
   function setReady(enabled) {
@@ -169,7 +202,7 @@
                 <strong>${escapeHtml(author)}</strong>
                 <time datetime="${escapeHtml(comment.createdAt || "")}">${escapeHtml(formatDate(comment.createdAt))}</time>
               </header>
-              <p>${escapeHtml(comment.body || "")}</p>
+              <p dir="auto">${escapeHtml(comment.body || "")}</p>
             </div>
           </article>`;
         })
@@ -192,7 +225,18 @@
     status.hidden = true;
     status.classList.remove("is-success", "is-error");
     const data = new FormData(form);
+    const author = String(data.get("author") || "").trim();
+    const text = String(data.get("body") || "").trim();
+    const invalid = !author ? form.elements.author : text.length < 2 ? form.elements.body : null;
+    if (invalid) {
+      status.textContent = invalid === form.elements.author ? "Please add your name." : "Please write a few words.";
+      status.classList.add("is-error");
+      status.hidden = false;
+      invalid.focus();
+      return;
+    }
     const payload = {
+      pagePath: location.pathname,
       postSlug: slug,
       postPath,
       author: String(data.get("author") || ""),
@@ -214,10 +258,18 @@
         status.hidden = false;
         return;
       }
-      form.reset();
-      status.textContent = "Thanks — your comment is held for review.";
-      status.classList.add("is-success");
-      status.hidden = false;
+      try {
+        localStorage.setItem(AUTHOR_KEY, author);
+      } catch {
+        // ignore
+      }
+      form.elements.body.value = "";
+      updateCounter();
+      fitTextarea();
+      mount.querySelector("[data-thanks-name]").textContent = author;
+      form.hidden = true;
+      thanks.hidden = false;
+      thanks.focus?.();
     } catch {
       status.textContent = "Could not submit comment.";
       status.classList.add("is-error");
@@ -226,6 +278,25 @@
       submit.disabled = false;
       submit.textContent = "Submit for review";
     }
+  });
+
+  form?.elements.body.addEventListener("input", () => {
+    updateCounter();
+    fitTextarea();
+  });
+
+  form?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+      event.preventDefault();
+      form.requestSubmit();
+    }
+  });
+
+  mount.querySelector("[data-comment-again]")?.addEventListener("click", () => {
+    thanks.hidden = true;
+    form.hidden = false;
+    status.hidden = true;
+    form.elements.body.focus();
   });
 
   setReady(false);

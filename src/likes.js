@@ -109,11 +109,15 @@
       const response = await fetch("/api/likes", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ slug, deviceId: id }),
+        body: JSON.stringify({ slug, deviceId: id, pagePath: location.pathname }),
       });
       const data = await response.json().catch(() => ({}));
 
       if (response.ok || response.status === 409) {
+        if (response.ok && button) {
+          button.classList.add("just-liked");
+          setTimeout(() => button.classList.remove("just-liked"), 900);
+        }
         render({
           count: Number.isFinite(data.count) ? data.count : optimistic,
           liked: true,

@@ -26,6 +26,13 @@ describe("likes", () => {
     assert.deepEqual(status, { count: 2, liked: true });
   });
 
+  it("keeps every like when two visitors like at the same moment", async () => {
+    const gitlab = createMemoryGitlab();
+    await Promise.all([addLike(gitlab, "words", deviceA), addLike(gitlab, "words", deviceB)]);
+    const status = await getLikeStatus(gitlab, "words", deviceA);
+    assert.equal(status.count, 2);
+  });
+
   it("rejects invalid input", async () => {
     const gitlab = createMemoryGitlab();
     await assert.rejects(() => addLike(gitlab, "../nope", deviceA), (error) => error.status === 400);

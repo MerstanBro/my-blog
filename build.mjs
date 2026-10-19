@@ -1,4 +1,5 @@
 import dotenv from "dotenv";
+import matter from "gray-matter";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -9,6 +10,8 @@ import { pathSegment, postSlugFromName, slugify } from "./lib/html-utils.js";
 import { createImageOptimizer } from "./lib/images.js";
 import { clearProcessedManifest, serializeManifest } from "./lib/manifest.js";
 import { minifyCss, minifyHtml, minifyJs } from "./lib/minify.js";
+import { isArabicPost } from "./lib/markdown.js";
+import { createQuranResolver } from "./lib/quran.js";
 import { cacheRef } from "./lib/site-cache.js";
 import { demo, site } from "./lib/site-config.js";
 import { createTemplates } from "./lib/templates.js";
@@ -16,6 +19,10 @@ import { createTemplates } from "./lib/templates.js";
 const root = path.dirname(fileURLToPath(import.meta.url));
 const dist = path.join(root, "dist");
 const isDemo = process.argv.includes("--demo");
+// --local[=path]: build from a checkout of the content vault (default ../blog). Read-only, no GitLab writes.
+const localArg = process.argv.find((arg) => arg === "--local" || arg.startsWith("--local="));
+const localDir = localArg ? path.resolve(root, localArg.split("=")[1] || path.join("..", "blog")) : "";
+const isOffline = isDemo || Boolean(localDir);
 
 dotenv.config({ path: path.join(root, ".env") });
 dotenv.config({ path: path.join(root, "..", ".env") });
@@ -40,7 +47,7 @@ async function minifyAsset(relativePath, transform) {
 }
 
 async function minifyAssets() {
-  const assetFiles = ["styles.css", "main.js", "likes.js", "comments.js", "diagrams.js", "type-race.js"];
+  const assetFiles = ["styles.css", "main.js", "article.js", "likes.js", "comments.js", "diagrams.js", "type-race.js"];
   const results = await Promise.all(
     assetFiles.map((file) =>
       minifyAsset(path.join("assets", file), file.endsWith(".css") ? minifyCss : minifyJs),
@@ -65,11 +72,17 @@ const { loadContent } = createContentLoader({
   ref,
   postSlugFromName,
   slugify,
+  localDir,
 });
-const { homePage, listingPage, postPage, sitemap, listingPath } = createTemplates({ site, siteUrl, images });
+const quranResolver = createQuranResolver({
+  cacheFile: path.join(root, ".cache", "quran.json"),
+  // A failed production deploy is better than shipping a post with a missing verse.
+  strict: !isOffline,
+});
+const { homePage, listingPage, postPage, sitemap, listingPath } = createTemplates({ site, siteUrl, images, quran: quranResolver.store });
 
 async function clearManifestAfterBuild(manifest) {
-  if (isDemo || !projectId || !token) return;
+  if (isOffline || !projectId || !token) return;
   try {
     const client = createGitlabClient({ projectId, token, ref });
     const cleared = clearProcessedManifest(manifest, { clearAll: true });
@@ -84,7 +97,7 @@ async function clearManifestAfterBuild(manifest) {
 }
 
 async function publishSiteCache(relativePaths) {
-  if (isDemo || !projectId || !token || process.env.SKIP_SITE_CACHE === "1") return;
+  if (isOffline || !projectId || !token || process.env.SKIP_SITE_CACHE === "1") return;
   const branch = cacheRef();
   try {
     const client = createGitlabClient({ projectId, token, ref: branch });
@@ -109,8 +122,14 @@ async function publishSiteCache(relativePaths) {
 }
 
 async function build() {
-  console.log(`Building ${isDemo ? "demo" : "GitLab"} content…`);
+  console.log(`Building ${isDemo ? "demo" : localDir ? `local (${localDir})` : "GitLab"} content…`);
   const data = await loadContent();
+  await quranResolver.prepare(
+    Object.values(data.posts).map((raw) => {
+      const body = matter(raw).content;
+      return { markdown: body, rtl: isArabicPost(body) };
+    }),
+  );
   if (data.incremental) console.log("Incremental mode: reusing cached post HTML where possible");
 
   await fs.rm(dist, { recursive: true, force: true });
@@ -172,6 +191,20 @@ async function build() {
     await write(path.join("comments", `${slug}.json`), `${JSON.stringify(comments, null, 2)}\n`);
     cachePaths.push(`comments/${slug}.json`);
   }
+
+  // Lightweight index for client-side "newer / older" links, so cached post HTML never goes stale.
+  const postIndex = [];
+  for (let page = 1; page <= data.details.number_of_pages; page += 1) {
+    for (const blog of data.pages.get(`all:${page}`)?.blogs || []) {
+      postIndex.push({
+        title: blog.title,
+        description: blog.description || "",
+        date: blog.date,
+        href: `/blog/${pathSegment(blog.path || blog.title)}/`,
+      });
+    }
+  }
+  await write("posts.json", JSON.stringify(postIndex));
 
   await write("sitemap.xml", sitemap(urls));
   await write("robots.txt", `User-agent: *\nAllow: /\nDisallow: /api/\nSitemap: ${siteUrl}/sitemap.xml\n`);

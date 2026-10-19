@@ -30,6 +30,14 @@
   font-weight: 100 900;
 }
 
+@font-face {
+  font-family: "Amiri Quran";
+  src: url("/assets/fonts/amiri-quran.woff2") format("woff2");
+  font-display: swap;
+  font-style: normal;
+  font-weight: 400;
+}
+
 :root {
   color-scheme: light;
   --bg: #f5f4ef;
@@ -813,10 +821,11 @@ html[data-theme="dark"] .theme-icon-dark {
   font-size: 1.08rem;
 }
 
-/* Skip layout/paint for offscreen article sections — long posts render faster. */
-.article-body > * {
+/* Skip layout/paint for offscreen heavy blocks. Not for text: estimated heights there make
+   #anchor jumps (table of contents, footnotes) land in the wrong place. */
+.article-body > :is(.code-shell, .mermaid-block, .chart-block, .video, table, figure.quran-card) {
   content-visibility: auto;
-  contain-intrinsic-size: auto 500px;
+  contain-intrinsic-size: auto 320px;
 }
 
 .article-shell[dir="rtl"] .article-header,
@@ -2047,5 +2056,831 @@ html.is-navigating .site-footer {
   .comments-drawer {
     animation: none !important;
     transition: none !important;
+  }
+}
+
+/* ==========================================================================
+   Polish layer: reading experience, rich content, comments, accessibility
+   ========================================================================== */
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 0.3rem;
+}
+
+.article-body h2,
+.article-body h3,
+.footnotes,
+.footnotes li {
+  scroll-margin-top: 96px;
+}
+
+.article-header h1,
+.post-card h2,
+.section-heading h2 {
+  text-wrap: balance;
+}
+
+.article-body p,
+.article-deck,
+.post-card p {
+  text-wrap: pretty;
+}
+
+/* Reading progress */
+.read-progress {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 60;
+  height: 3px;
+  pointer-events: none;
+}
+
+.read-progress span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #fff));
+  transform: scaleX(var(--p, 0));
+  transform-origin: left;
+}
+
+.read-progress[data-rtl] span {
+  transform-origin: right;
+}
+
+/* Article header tools: copy link + like */
+.article-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.share-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.35rem;
+  padding: 0.28rem 0.85rem 0.28rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 600;
+  transition: border-color 180ms ease, color 180ms ease, background 180ms ease;
+}
+
+.share-button:hover,
+.share-button.is-done {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line-strong));
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.share-button.is-done {
+  color: var(--accent);
+}
+
+.share-icon svg {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.like-button.just-liked .like-icon {
+  animation: like-pop 700ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes like-pop {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.5) rotate(-8deg);
+  }
+  70% {
+    transform: scale(0.95);
+  }
+  100% {
+    transform: scale(1.06);
+  }
+}
+
+/* Table of contents */
+.toc {
+  max-width: 780px;
+  margin: 2.5rem 0 0;
+  padding: 0.35rem 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: 0.9rem;
+  background: color-mix(in srgb, var(--surface) 80%, var(--bg));
+}
+
+.toc summary {
+  padding: 0.7rem 0;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: "DM Mono", monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  list-style: none;
+  text-transform: uppercase;
+}
+
+.toc summary::-webkit-details-marker {
+  display: none;
+}
+
+.toc summary::after {
+  float: inline-end;
+  content: "−";
+  color: var(--accent);
+}
+
+.toc:not([open]) summary::after {
+  content: "+";
+}
+
+.toc ol {
+  display: grid;
+  gap: 0.15rem;
+  margin: 0 0 0.9rem;
+  padding: 0;
+  counter-reset: toc;
+  list-style: none;
+}
+
+.toc li.toc-h2 {
+  counter-increment: toc;
+}
+
+.toc li a {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.3rem 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+  transition: color 160ms ease;
+}
+
+.toc li.toc-h2 a::before {
+  min-width: 1.6rem;
+  color: var(--accent);
+  content: counter(toc, decimal-leading-zero);
+  font-family: "DM Mono", monospace;
+  font-size: 0.72rem;
+  line-height: 1.9;
+}
+
+.toc li.toc-h3 a {
+  padding-inline-start: 2.35rem;
+  font-size: 0.88rem;
+}
+
+.toc li a:hover,
+.toc li a[aria-current="true"] {
+  color: var(--ink);
+}
+
+.toc li a[aria-current="true"] {
+  font-weight: 650;
+}
+
+/* Heading anchors */
+.heading-anchor {
+  margin-inline-start: 0.45em;
+  color: var(--accent);
+  font-size: 0.7em;
+  opacity: 0;
+  text-decoration: none !important;
+  transition: opacity 160ms ease;
+}
+
+.article-body h2:hover .heading-anchor,
+.article-body h3:hover .heading-anchor,
+.heading-anchor:focus-visible {
+  opacity: 0.8;
+}
+
+@media (hover: none) {
+  .heading-anchor {
+    display: none;
+  }
+}
+
+/* Arabic inside English text */
+.ar,
+.ar-block {
+  font-family: "Noto Kufi Arabic", "Manrope", sans-serif;
+}
+
+.ar-block {
+  font-size: 1.2em;
+  line-height: 2;
+}
+
+/* Plain quotes follow the reading direction (RTL posts get the bar on the right) */
+.article-body blockquote {
+  padding: 0.5rem 0;
+  padding-inline-start: 1.5rem;
+  border-left: 0;
+  border-inline-start: 2px solid var(--accent);
+}
+
+/* Quotes with attribution */
+.article-body figure.quote {
+  position: relative;
+  margin: 2.6rem 0;
+  padding: 2rem 0 0.4rem 1.9rem;
+  border-inline-start: 2px solid var(--accent);
+}
+
+.article-body figure.quote::before {
+  position: absolute;
+  inset-block-start: -0.55rem;
+  inset-inline-start: 1.3rem;
+  color: var(--accent);
+  content: "“";
+  font-size: 4.5rem;
+  line-height: 1;
+  opacity: 0.45;
+}
+
+.article-body figure.quote blockquote {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: var(--ink);
+  font-size: 1.28rem;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  line-height: 1.55;
+}
+
+.article-body figure.quote blockquote p {
+  margin: 0.6em 0;
+  color: inherit;
+}
+
+.article-body figure.quote figcaption {
+  margin-top: 0.9rem;
+  color: var(--muted);
+  font-family: "DM Mono", monospace;
+  font-size: 0.74rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.article-body figure.quote figcaption::before {
+  content: "— ";
+  color: var(--accent);
+}
+
+.quote-label {
+  display: inline-block;
+  margin-bottom: 0.4rem;
+  padding: 0.15rem 0.6rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-family: "DM Mono", monospace;
+  font-size: 0.66rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.article-body figure.quote-hadith blockquote .ar-block,
+.article-body figure.quote-dua blockquote .ar-block {
+  font-size: 1.35em;
+}
+
+.article-shell[dir="rtl"] .article-body figure.quote {
+  padding: 2rem 1.9rem 0.4rem 0;
+}
+
+/* Callouts: > [!note] Title */
+.callout {
+  --c: var(--accent);
+  margin: 2rem 0;
+  padding: 1rem 1.25rem 1.1rem;
+  border: 1px solid color-mix(in srgb, var(--c) 35%, var(--line));
+  border-inline-start: 3px solid var(--c);
+  border-radius: 0.8rem;
+  background: color-mix(in srgb, var(--c) 8%, var(--surface));
+}
+
+.callout-tip {
+  --c: #3f8a5a;
+}
+
+.callout-info {
+  --c: #3b72b0;
+}
+
+.callout-warning,
+.callout-danger {
+  --c: var(--danger);
+}
+
+html[data-theme="dark"] .callout-tip {
+  --c: #7bc48f;
+}
+
+html[data-theme="dark"] .callout-info {
+  --c: #86b0e3;
+}
+
+@media (prefers-color-scheme: dark) {
+  html[data-theme="system"] .callout-tip {
+    --c: #7bc48f;
+  }
+
+  html[data-theme="system"] .callout-info {
+    --c: #86b0e3;
+  }
+}
+
+.callout-title {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0 0 0.35rem;
+  color: var(--c);
+  font-size: 0.82rem;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.callout-icon {
+  display: grid;
+  place-items: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--c) 18%, transparent);
+  font-size: 0.8rem;
+}
+
+.callout-body > :first-child {
+  margin-top: 0;
+}
+
+.callout-body > :last-child {
+  margin-bottom: 0;
+}
+
+/* Quran verse card */
+.quran-card {
+  position: relative;
+  margin: 3rem 0;
+  padding: 2.6rem clamp(1.1rem, 4vw, 2.4rem) 1.2rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 38%, var(--line));
+  border-radius: 1.2rem;
+  background:
+    radial-gradient(120% 90% at 50% 0%, color-mix(in srgb, var(--accent-soft) 70%, transparent), transparent 65%),
+    color-mix(in srgb, var(--surface) 90%, var(--bg));
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+
+.quran-card::before {
+  position: absolute;
+  inset-block-start: -1.05rem;
+  inset-inline: 0;
+  width: fit-content;
+  margin-inline: auto;
+  padding: 0 0.7rem;
+  background: var(--bg);
+  color: var(--accent);
+  content: "۞";
+  font-family: "Amiri Quran", "Noto Kufi Arabic", serif;
+  font-size: 1.7rem;
+  line-height: 1.6rem;
+}
+
+.article-body .quran-card .quran-text {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: var(--ink);
+  font-family: "Amiri Quran", "Noto Kufi Arabic", serif;
+  font-size: clamp(1.7rem, 4.6vw, 2.35rem);
+  font-weight: 400;
+  line-height: 2.3;
+  text-align: center;
+  word-spacing: 0.08em;
+}
+
+.ayah-no {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.9em;
+  height: 1.9em;
+  margin-inline: 0.3em 0.45em;
+  padding-inline: 0.2em;
+  border: 1.5px solid color-mix(in srgb, var(--accent) 80%, transparent);
+  border-radius: 50%;
+  color: var(--accent);
+  font-size: 0.5em;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+.article-body .quran-translation {
+  max-width: 40rem;
+  margin: 1rem auto 0;
+  color: color-mix(in srgb, var(--ink) 78%, var(--muted));
+  font-size: 1.02rem;
+  line-height: 1.75;
+}
+
+.tr-no {
+  margin-inline-end: 0.15em;
+  color: var(--accent);
+  font-family: "DM Mono", monospace;
+  font-size: 0.7em;
+  vertical-align: super;
+}
+
+.quran-ref {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.35rem 1rem;
+  margin-top: 1.2rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid color-mix(in srgb, var(--accent) 22%, var(--line));
+  color: var(--muted);
+  font-family: "DM Mono", monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.article-body .quran-ref a {
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.article-body .quran-ref a:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.quran-surah {
+  color: var(--accent);
+  font-family: "Amiri Quran", "Noto Kufi Arabic", serif;
+  font-size: 1.15rem;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.quran-source {
+  opacity: 0.8;
+}
+
+.quran-copy {
+  position: absolute;
+  inset-block-start: 0.7rem;
+  inset-inline-end: 0.8rem;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-family: "DM Mono", monospace;
+  font-size: 0.66rem;
+  opacity: 0;
+  transition: opacity 160ms ease, color 160ms ease;
+}
+
+.quran-card:hover .quran-copy,
+.quran-copy:focus-visible {
+  opacity: 1;
+}
+
+.quran-copy:hover {
+  color: var(--accent);
+}
+
+@media (hover: none) {
+  .quran-copy {
+    opacity: 1;
+  }
+}
+
+.quran-card.is-unresolved {
+  padding-block: 1.4rem 1.2rem;
+  border-style: dashed;
+}
+
+.quran-card.is-unresolved::before {
+  display: none;
+}
+
+.quran-card.is-unresolved .quran-ref {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.quran-card.is-unresolved p {
+  margin: 0;
+  color: var(--muted);
+}
+
+/* Footnotes / references */
+.fn-ref {
+  margin-inline-start: 0.1em;
+  font-size: 0.72em;
+  line-height: 0;
+}
+
+.article-body .fn-ref a {
+  display: inline-block;
+  min-width: 1.3em;
+  padding: 0.12em 0.3em;
+  border-radius: 0.4em;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-family: "DM Mono", monospace;
+  font-weight: 500;
+  line-height: 1.2;
+  text-align: center;
+  text-decoration: none;
+}
+
+.footnotes {
+  margin-top: 4rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--line);
+}
+
+.article-body .footnotes-title {
+  margin: 0 0 1rem;
+  color: var(--muted);
+  font-family: "DM Mono", monospace;
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.footnotes ol {
+  display: grid;
+  gap: 0.7rem;
+  margin: 0;
+  padding-inline-start: 1.4rem;
+}
+
+.footnotes li {
+  padding-inline-start: 0.3rem;
+  font-size: 0.94rem;
+  line-height: 1.6;
+}
+
+.footnotes li::marker {
+  color: var(--accent);
+  font-family: "DM Mono", monospace;
+  font-size: 0.85em;
+}
+
+.footnotes li:target {
+  margin-inline: -0.6rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.5rem;
+  background: var(--accent-soft);
+}
+
+.article-body .fn-back {
+  margin-inline-start: 0.3em;
+  text-decoration: none;
+}
+
+/* Newer / older */
+.post-nav {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 4rem;
+}
+
+.post-nav-link {
+  display: grid;
+  gap: 0.35rem;
+  padding: 1.1rem 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: 0.9rem;
+  background: color-mix(in srgb, var(--surface) 80%, var(--bg));
+  transition: border-color 180ms ease, transform 180ms ease, background 180ms ease;
+}
+
+.post-nav-link.is-older {
+  grid-column: 2;
+  text-align: end;
+}
+
+.post-nav-link.is-older:only-child {
+  grid-column: 1 / -1;
+}
+
+.post-nav-link:hover {
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--line));
+  background: var(--surface);
+  transform: translateY(-2px);
+}
+
+.post-nav-label {
+  color: var(--muted);
+  font-family: "DM Mono", monospace;
+  font-size: 0.66rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.post-nav-link.is-newer .post-nav-label::before {
+  content: "← ";
+  color: var(--accent);
+}
+
+.post-nav-link.is-older .post-nav-label::after {
+  content: " →";
+  color: var(--accent);
+}
+
+.article-shell[dir="rtl"] .post-nav-link.is-newer .post-nav-label::before {
+  content: "→ ";
+}
+
+.article-shell[dir="rtl"] .post-nav-link.is-older .post-nav-label::after {
+  content: " ←";
+}
+
+.post-nav-title {
+  font-size: 1.02rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+}
+
+/* Blog cards */
+.post-card {
+  transition: border-color 200ms ease;
+}
+
+.post-card:hover {
+  border-bottom-color: color-mix(in srgb, var(--accent) 50%, var(--line));
+}
+
+.post-image-link {
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+/* Comments */
+.comment-field-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.comment-counter {
+  color: var(--muted);
+  font-family: "DM Mono", monospace;
+  font-size: 0.72rem;
+  font-style: normal;
+}
+
+.comment-shortcut {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.comment-shortcut kbd {
+  padding: 0.1rem 0.35rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 0.3rem;
+  background: var(--surface);
+  font-family: "DM Mono", monospace;
+  font-size: 0.72rem;
+}
+
+@media (hover: none) {
+  .comment-shortcut {
+    display: none;
+  }
+}
+
+.comment-form textarea {
+  overflow-y: auto;
+}
+
+.comment-thanks {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  max-width: 40rem;
+  margin-top: 2.25rem;
+  padding: 1.3rem 1.4rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line));
+  border-radius: 0.9rem;
+  background: color-mix(in srgb, var(--accent-soft) 55%, var(--surface));
+  animation: thanks-in 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.comment-thanks h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1.1rem;
+  letter-spacing: -0.02em;
+}
+
+.comment-thanks p {
+  margin: 0 0 0.6rem;
+  color: var(--muted);
+}
+
+.comment-thanks-icon {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--bg);
+  font-weight: 800;
+}
+
+.text-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+@keyframes thanks-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@media (max-width: 640px) {
+  .post-nav {
+    grid-template-columns: 1fr;
+  }
+
+  .post-nav-link.is-older {
+    grid-column: 1;
+    text-align: start;
+  }
+
+  .quran-card {
+    margin-inline: -0.25rem;
+  }
+
+  .article-tools {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .like-button.just-liked .like-icon,
+  .comment-thanks {
+    animation: none;
+  }
+}
+
+@media print {
+  .site-header,
+  .site-footer,
+  .read-progress,
+  .article-tools,
+  .post-nav,
+  .comments-panel,
+  .quran-copy,
+  .toc {
+    display: none !important;
+  }
+
+  .quran-card,
+  .callout,
+  figure.quote {
+    break-inside: avoid;
   }
 }
