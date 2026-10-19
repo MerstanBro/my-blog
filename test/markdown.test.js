@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { markdownHtml, transformCodeFence } from "../lib/markdown.js";
+import { minifyHtml } from "../lib/minify.js";
 
 describe("markdown fences", () => {
   it("renders mermaid blocks", () => {
@@ -8,6 +9,14 @@ describe("markdown fences", () => {
     assert.match(result.html, /class="mermaid"/);
     assert.match(result.html, /mermaid-block/);
     assert.equal(result.hasMermaid, true);
+  });
+
+  it("keeps mermaid line breaks through the HTML minifier", () => {
+    const { html } = markdownHtml("```mermaid\nflowchart LR\n  A --> B\n  B --> C\n```\n");
+    const minified = minifyHtml(html);
+    const source = minified.match(/<div class="mermaid">([\s\S]*?)<\/div>/)[1];
+    assert.ok(source.startsWith("flowchart LR&#10;"), "first line must end with a newline entity");
+    assert.equal((source.match(/&#10;/g) || []).length, 2);
   });
 
   it("renders chart canvases and falls back on bad JSON", () => {
