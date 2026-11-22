@@ -124,12 +124,16 @@ async function publishSiteCache(relativePaths) {
 async function build() {
   console.log(`Building ${isDemo ? "demo" : localDir ? `local (${localDir})` : "GitLab"} content…`);
   const data = await loadContent();
-  await quranResolver.prepare(
-    Object.values(data.posts).map((raw) => {
-      const body = matter(raw).content;
-      return { markdown: body, rtl: isArabicPost(body) };
-    }),
-  );
+  const manuscripts = [];
+  for (const [name, raw] of Object.entries(data.posts)) {
+    const entry = data.entries?.get(name);
+    const body = matter(raw).content;
+    manuscripts.push({ markdown: body, rtl: entry?.lang ? entry.lang === "ar" : isArabicPost(body) });
+    if (data.editions?.[name]) {
+      manuscripts.push({ markdown: matter(data.editions[name]).content, rtl: entry.translation.lang === "ar" });
+    }
+  }
+  await quranResolver.prepare(manuscripts);
   if (data.incremental) console.log("Incremental mode: reusing cached post HTML where possible");
 
   await fs.rm(dist, { recursive: true, force: true });
@@ -174,7 +178,15 @@ async function build() {
   const cachePaths = [];
   for (const name of allPostNames) {
     if (data.posts[name]) {
-      const post = postPage(data.content, data.posts[name], name);
+      const entry = data.entries?.get(name);
+      const post = postPage(data.content, data.posts[name], name, { lang: entry?.lang, paired: Boolean(entry?.translation) });
+      if (data.editions?.[name]) {
+        const edition = postPage(data.content, data.editions[name], name, {
+          lang: entry.translation.lang, translated: true, original: matter(data.posts[name]).data,
+        });
+        await write(path.join(edition.filePathname, "index.html"), edition.html);
+        urls.push({ pathname: edition.pathname, date: edition.date });
+      }
       await write(path.join(post.filePathname, "index.html"), post.html);
       urls.push({ pathname: post.pathname, date: post.date });
       cachePaths.push(`${post.filePathname.replace(/^\//, "").replace(/\/$/, "")}/index.html`);

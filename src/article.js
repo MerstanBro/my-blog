@@ -126,7 +126,7 @@
     fetch("/posts.json")
       .then((response) => (response.ok ? response.json() : []))
       .then((posts) => {
-        const here = normalise(location.pathname);
+        const here = normalise(nav.dataset.originalPath || location.pathname);
         const index = posts.findIndex((post) => normalise(post.href) === here);
         if (index === -1) return;
         const items = [
@@ -152,3 +152,10 @@
       .catch(() => {});
   }
 })();
+
+const translateLink = document.querySelector("[data-machine-translation]");
+if (translateLink && location.protocol === "https:") {
+  const target = new URL(translateLink.href);
+  target.searchParams.set("u", location.origin + location.pathname);
+  translateLink.href = target.href;
+}
