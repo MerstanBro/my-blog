@@ -2884,3 +2884,8 @@ html[data-theme="dark"] .callout-info {
     break-inside: avoid;
   }
 }
+
+/* Keep the emir’s face in frame when the portrait fills a landscape cover. */
+:is(.article-cover, .post-image)[src$="/Abd_al-Qadir.jpg"] {
+  object-position: 50% 20%;
+}
