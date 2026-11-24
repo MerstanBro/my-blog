@@ -833,6 +833,14 @@ html[data-theme="dark"] .theme-icon-dark {
   font-family: "Noto Kufi Arabic", "Manrope", sans-serif;
 }
 
+.article-shell[dir="rtl"] .article-header h1 {
+  max-width: 100%;
+  font-size: clamp(2rem, 6.5vw, 3.75rem);
+  letter-spacing: normal;
+  word-spacing: 0.05em;
+  line-height: 1.5;
+}
+
 .article-shell[dir="rtl"] .article-body {
   line-height: 2;
 }
